@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>로그인 - 꼼망컴퍼니 CIS</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+        body { margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f0f2f5; }
+        .login-card { width: 100%; max-width: 400px; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
+        .logo { font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 10px; }
+        .subtitle { color: #64748b; margin-bottom: 30px; font-size: 14px; }
+        .form-group { text-align: left; margin-bottom: 20px; }
+        label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 8px; }
+        input { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; transition: border 0.2s; }
+        input:focus { border-color: #3b82f6; }
+        .btn-login { width: 100%; padding: 14px; background-color: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+        .error-msg { color: #ef4444; font-size: 13px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo">🏢 꼼망컴퍼니 CIS</div>
+        <div class="subtitle">시스템에 접속하기 위해 로그인해 주세요.</div>
+        
+        {% if form.errors %}
+            <div class="error-msg">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>아이디</label>
+                <input type="text" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label>비밀번호</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit" class="btn-login">로그인</button>
+        </form>
+    </div>
+</body>
+</html>

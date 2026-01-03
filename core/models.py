@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 
 # 1. 회사 (Organization)
 class Organization(models.Model):
@@ -17,6 +18,7 @@ class User(AbstractUser):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, verbose_name="소속 회사")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff', verbose_name="직책")
 
+    # 가상환경 및 모델 충돌 방지를 위한 related_name 설정 유지
     groups = models.ManyToManyField(
         'auth.Group', related_name='core_user_set', blank=True,
         help_text='The groups this user belongs to.', verbose_name='groups',
@@ -26,18 +28,21 @@ class User(AbstractUser):
         help_text='Specific permissions for this user.', verbose_name='user permissions',
     )
 
-# 3. AI 직원 (Agent) - [수정] ticker 필드 추가
+# 3. AI 직원 (Agent) - [수정] 요청하신 7가지 필드 적용
 class Agent(models.Model):
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='agents')
-    name = models.CharField(max_length=50, verbose_name="AI 이름")
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='agents', verbose_name="소속 회사")
+    
+    # 요청 필드 반영
+    name = models.CharField(max_length=50, verbose_name="이름")
     department = models.CharField(max_length=50, default='국제금융실', verbose_name="소속 부서")
+    position = models.CharField(max_length=50, default='실장', verbose_name="직급")
     role = models.CharField(max_length=100, verbose_name="담당 업무")
-    ticker = models.CharField(max_length=10, blank=True, null=True, verbose_name="관리 종목코드(예: SPY)")
+    ticker = models.CharField(max_length=20, blank=True, null=True, verbose_name="관리 종목코드")
     persona = models.TextField(verbose_name="프롬프트(페르소나)")
     model_name = models.CharField(max_length=50, default='gpt-4o', verbose_name="사용 모델")
     
     def __str__(self):
-        return f"{self.name} ({self.role})"
+        return f"{self.department} {self.name} {self.position} ({self.role})"
 
 # 4. 업무 (Task)
 class Task(models.Model):
@@ -67,7 +72,7 @@ class Approval(models.Model):
     agent = models.ForeignKey(Agent, on_delete=models.SET_NULL, null=True, blank=True, related_name='drafted_approvals', verbose_name="AI 기안자")
     
     title = models.CharField(max_length=200, verbose_name="문서 제목")
-    content = models.TextField(verbose_name="문서 내용") # HTML 포함
+    content = models.TextField(verbose_name="문서 내용")
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name="문서 상태")
     created_at = models.DateTimeField(auto_now_add=True)

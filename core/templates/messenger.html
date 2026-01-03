@@ -1,39 +1,38 @@
 {% extends 'base.html' %}
 
-{% block extra_style %}
-    .chat-container { flex: 1; display: flex; flex-direction: column; background-color: #f2f5f9; }
+{% block content %}
+<style>
+    .chat-container { flex: 1; display: flex; flex-direction: column; background-color: #f2f5f9; height: 100vh; }
     .chat-header { height: 60px; background-color: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; padding: 0 25px; font-weight: 700; color: #1e293b; }
     .chat-box { flex: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
     .message-row { display: flex; width: 100%; }
-    .bubble { padding: 14px 18px; border-radius: 12px; font-size: 15px; line-height: 1.5; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: fit-content; max-width: 70%; word-break: break-word; }
-    .received .bubble { background-color: white; border: 1px solid #e2e8f0; border-top-left-radius: 2px; }
     .sent { justify-content: flex-end; }
+    .received { justify-content: flex-start; }
+    .bubble { padding: 14px 18px; border-radius: 12px; font-size: 15px; line-height: 1.5; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: fit-content; max-width: 70%; word-break: break-word; }
     .sent .bubble { background-color: #3b82f6; color: white; border-top-right-radius: 2px; }
+    .received .bubble { background-color: white; border: 1px solid #e2e8f0; border-top-left-radius: 2px; }
     .input-area { background-color: white; padding: 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; }
     .input-area input { flex: 1; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
     .input-area button { background-color: #22c55e; color: white; border: none; padding: 0 25px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-{% endblock %}
+</style>
 
-{% block content %}
-    <div class="chat-container">
-        <div class="chat-header">
-            {% if active_agent %} 💬 {{ active_agent.name }} ({{ active_agent.role }}) {% else %} 💬 대화할 AI 직원을 선택해주세요 {% endif %}
-        </div>
-        <div class="chat-box" id="chatBox">
-            {% for msg in messages %}
-                <div class="message-row {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
-                    <div class="bubble">{{ msg.content }}</div>
-                </div>
-            {% empty %}
-                {% if active_agent %}<div style="text-align:center; color:#888;">대화 기록이 없습니다. 업무를 지시해보세요!</div>{% endif %}
-            {% endfor %}
-        </div>
-        {% if active_agent %}
-        <form class="input-area" method="post">
-            {% csrf_token %}
-            <input type="text" name="prompt" placeholder="메시지를 입력하세요..." required autofocus>
-            <button type="submit">전송</button>
-        </form>
-        {% endif %}
+<div class="chat-container">
+    <div class="chat-header">
+    {% if active_agent %}
+        🤖 {{ active_agent.department }} {{ active_agent.name }}
+    {% else %}
+        🤖 대화할 직원을 선택해 주세요
+    {% endif %}
     </div>
+    <div class="chat-box" id="chatBox">
+        <div class="message-row received">
+            <div class="bubble">안녕하세요, 꼼망컴퍼니 CIS입니다. 무엇을 도와드릴까요?</div>
+        </div>
+    </div>
+    <form class="input-area" method="post">
+        {% csrf_token %}
+        <input type="text" name="message" placeholder="메시지를 입력하세요..." required>
+        <button type="submit">전송</button>
+    </form>
+</div>
 {% endblock %}

@@ -1,19 +1,79 @@
 {% extends 'base.html' %}
 
-{% block extra_style %}
-    .main-content { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #333; }
-    .welcome-title { font-size: 28px; font-weight: bold; margin-bottom: 20px; color: #1e293b; }
-    .welcome-desc { font-size: 16px; color: #64748b; line-height: 1.6; }
-    .emoji-hand { font-size: 40px; margin-bottom: 10px; }
-{% endblock %}
-
 {% block content %}
-    <div class="main-content">
+<style>
+    /* 화면 전체를 채우는 메인 컨테이너 */
+    .main-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 40px;
+        background-color: #f8fafc; /* 부드러운 배경색 */
+        min-height: calc(100vh - 40px); /* 사이드바 높이에 맞춤 */
+    }
+
+    /* 환영 카드 섹션 */
+    .welcome-card {
+        background: white;
+        padding: 60px;
+        border-radius: 24px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .emoji-hand {
+        font-size: 64px;
+        margin-bottom: 24px;
+        display: inline-block;
+        animation: wave-animation 2.5s infinite;
+        transform-origin: 70% 70%;
+    }
+
+    .welcome-title {
+        font-size: 32px;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 16px;
+        letter-spacing: -0.025em;
+    }
+
+    .welcome-desc {
+        font-size: 17px;
+        color: #475569;
+        line-height: 1.8;
+        word-break: keep-all;
+    }
+
+    .highlight {
+        color: #3b82f6;
+        font-weight: 700;
+    }
+
+    @keyframes wave-animation {
+        0% { transform: rotate( 0.0deg) }
+       10% { transform: rotate(14.0deg) }
+       20% { transform: rotate(-8.0deg) }
+       30% { transform: rotate(14.0deg) }
+       40% { transform: rotate(-4.0deg) }
+       50% { transform: rotate(10.0deg) }
+       60% { transform: rotate( 0.0deg) }
+      100% { transform: rotate( 0.0deg) }
+    }
+</style>
+
+<div class="main-container">
+    <div class="welcome-card">
         <div class="emoji-hand">👋</div>
-        <div class="welcome-title">환영합니다, {{ user.username }}님!</div>
-        <div class="welcome-desc">
-            왼쪽 메뉴에서 업무를 지시할 <b>AI 직원</b>을 선택하거나,<br>
-            상단의 버튼을 눌러 <b>문서를 작성/결재</b>하세요.
-        </div>
+        <h1 class="welcome-title">반갑습니다, <span class="highlight">{{ user.username }}</span>님!</h1>
+        <p class="welcome-desc">
+            <strong>꼼망컴퍼니 CIS</strong>에 접속하셨습니다.<br>
+            좌측 사이드바에서 <span class="highlight">AI 직원</span>을 선택하여 대화를 시작하거나,<br>
+            전자결재 기능을 통해 업무를 승인해 주세요.
+        </p>
     </div>
+</div>
 {% endblock %}

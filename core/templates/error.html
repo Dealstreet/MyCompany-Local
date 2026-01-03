@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center;">
+    <div style="font-size: 60px; margin-bottom: 20px;">⚠️</div>
+    <h2 style="color: #1e293b;">접근 권한이 없습니다</h2>
+    <p style="color: #64748b; line-height: 1.6;">
+        사용자님의 계정에 등록된 소속 회사가 없습니다.<br>
+        관리자에게 문의하여 회사 설정을 완료해 주세요.
+    </p>
+    <a href="{% url 'index' %}" style="margin-top: 20px; color: #3b82f6; font-weight: 600;">홈으로 돌아가기</a>
+</div>
+{% endblock %}
