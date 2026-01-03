@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>꼼망컴퍼니 CIS - 홈</title>
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+        body { margin: 0; display: flex; height: 100vh; background-color: #f0f2f5; overflow: hidden; }
+        a { text-decoration: none; color: inherit; } /* 링크 스타일 초기화 */
+
+        .sidebar { width: 260px; background-color: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
+        
+        /* [수정] 로고 스타일 (커서 포인터 등) */
+        .logo { font-size: 18px; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; color: #fff; cursor: pointer; }
+        
+        .menu-btn { width: 100%; padding: 12px 15px; border-radius: 6px; font-size: 14px; font-weight: 600; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; transition: opacity 0.2s; }
+        .menu-btn:hover { opacity: 0.9; }
+        .btn-orange { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+        .btn-blue   { background: linear-gradient(135deg, #2980b9, #3498db); }
+        .btn-purple { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
+
+        .section-title { font-size: 12px; color: #64748b; margin-top: 25px; margin-bottom: 15px; font-weight: 600; }
+        .profile-card { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; color: white; transition: 0.2s; cursor: pointer; }
+        .profile-card:hover { background-color: rgba(255,255,255,0.1); }
+        .profile-name { font-size: 14px; font-weight: 600; }
+        .profile-dept { font-size: 11px; color: #94a3b8; }
+
+        .main-content { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #333; }
+        .welcome-title { font-size: 28px; font-weight: bold; margin-bottom: 20px; color: #1e293b; }
+        .welcome-desc { font-size: 16px; color: #64748b; line-height: 1.6; }
+        .emoji-hand { font-size: 40px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+    <a href="{% url 'index' %}" class="logo">🏢 꼼망컴퍼니 CIS</a>
+    <a href="{% url 'create_self_approval' %}" class="menu-btn btn-orange">📝 직접 기안 작성</a>
+    <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
+    <a href="{% url 'org_chart' %}" class="menu-btn btn-purple">📊 조직도 보기</a>
+    <div class="section-title">AI 직원 목록</div>
+    ...
+</div>
+
+    <div class="main-content">
+        <div class="emoji-hand">👋</div>
+        <div class="welcome-title">환영합니다, {{ user.username }}님!</div>
+        <div class="welcome-desc">
+            왼쪽 메뉴에서 업무를 지시할 <b>AI 직원</b>을 선택하거나,<br>
+            상단의 버튼을 눌러 <b>문서를 작성/결재</b>하세요.
+        </div>
+    </div>
+</body>
+</html>

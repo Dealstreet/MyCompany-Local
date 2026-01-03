@@ -1,0 +1,16 @@
+# API Keys and Secrets
+keys/
+*.txt
+*.exe
+
+# Database
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+
+# Environments
+.venv/
+env/
+.env

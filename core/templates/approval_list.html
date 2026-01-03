@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>전자결재함</title>
+    <style>
+        /* 공통 스타일 */
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
+        body { margin: 0; display: flex; height: 100vh; background-color: #f0f2f5; overflow: hidden; }
+        a { text-decoration: none; color: inherit; } /* 링크 밑줄 제거 및 색상 상속 */
+        
+        .sidebar { width: 260px; background-color: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
+        /* 로고도 a태그로 변경 */
+        .logo { font-size: 18px; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; color: #fff; cursor: pointer; }
+        
+        .menu-btn { width: 100%; padding: 12px 15px; border-radius: 6px; font-size: 14px; font-weight: 600; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; transition: opacity 0.2s; }
+        .menu-btn:hover { opacity: 0.9; }
+        .btn-orange { background: linear-gradient(135deg, #f2994a, #f2c94c); }
+        .btn-blue { background: linear-gradient(135deg, #2980b9, #3498db); }
+        .btn-purple { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
+        .section-title { font-size: 12px; color: #64748b; margin-top: 25px; margin-bottom: 15px; font-weight: 600; }
+        .profile-card { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; color: white; cursor: pointer; }
+        .profile-card:hover { background-color: rgba(255,255,255,0.1); }
+        
+        .content-area { flex: 1; padding: 40px; overflow-y: auto; }
+        .list-header { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #1e293b; }
+        .doc-list { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
+        
+        /* [수정] a태그로 바뀌어도 디자인 유지되도록 설정 */
+        .doc-item { display: flex; padding: 20px; border-bottom: 1px solid #eee; align-items: center; cursor: pointer; transition: 0.1s; width: 100%; text-align: left; }
+        .doc-item:hover { background-color: #f8fafc; }
+        .doc-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; color: #333; }
+        .doc-meta { font-size: 13px; color: #888; }
+        .doc-icon { font-size: 24px; margin-right: 20px; }
+        .doc-info { flex: 1; }
+        
+        .badge { padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; }
+        .badge-pending { background-color: #fff3cd; color: #856404; }
+        .badge-approved { background-color: #d4edda; color: #155724; }
+        .badge-rejected { background-color: #f8d7da; color: #721c24; }
+        .badge-draft { background-color: #e2e3e5; color: #383d41; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+    <a href="{% url 'index' %}" class="logo">🏢 꼼망컴퍼니 CIS</a>
+    <a href="{% url 'create_self_approval' %}" class="menu-btn btn-orange">📝 직접 기안 작성</a>
+    <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
+    <a href="{% url 'org_chart' %}" class="menu-btn btn-purple">📊 조직도 보기</a>
+    <div class="section-title">AI 직원 목록</div>
+    ...
+</div>
+
+    <div class="content-area">
+        <div class="list-header">📂 전자결재함</div>
+        <div class="doc-list">
+            {% for doc in approvals %}
+            <a href="{% url 'approval_detail' doc.id %}" class="doc-item">
+                <div class="doc-icon">📑</div>
+                <div class="doc-info">
+                    <div class="doc-title">{{ doc.title }}</div>
+                    <div class="doc-meta">
+                        기안자: {% if doc.drafter %}{{ doc.drafter.username }}{% else %}{{ doc.agent.name }}(AI){% endif %} 
+                        | 작성일: {{ doc.created_at|date:"Y-m-d" }}
+                    </div>
+                </div>
+                <span class="badge badge-{{ doc.status }}">{{ doc.get_status_display }}</span>
+            </a>
+            {% empty %}
+            <div style="padding: 30px; text-align: center; color: #888;">
+                문서가 없습니다.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
