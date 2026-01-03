@@ -19,15 +19,21 @@
 <div class="chat-container">
     <div class="chat-header">
     {% if active_agent %}
-        🤖 {{ active_agent.department }} {{ active_agent.name }}
+        {{ active_agent.department }} {{ active_agent.name }} {{ active_agent.position }}
     {% else %}
-        🤖 대화할 직원을 선택해 주세요
+        대화할 직원을 선택해 주세요
     {% endif %}
     </div>
     <div class="chat-box" id="chatBox">
+        {% for msg in messages %}
+        <div class="message-row {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
+            <div class="bubble">{{ msg.content|linebreaksbr }}</div>
+        </div>
+        {% empty %}
         <div class="message-row received">
             <div class="bubble">안녕하세요, 꼼망컴퍼니 CIS입니다. 무엇을 도와드릴까요?</div>
         </div>
+        {% endfor %}
     </div>
     <form class="input-area" method="post">
         {% csrf_token %}

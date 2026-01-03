@@ -40,7 +40,7 @@ class Agent(models.Model):
     ticker = models.CharField(max_length=20, blank=True, null=True, verbose_name="관리 종목코드")
     persona = models.TextField(verbose_name="프롬프트(페르소나)")
     model_name = models.CharField(max_length=50, default='gpt-4o', verbose_name="사용 모델")
-    
+    profile_image = models.ImageField(upload_to='agents/', null=True, blank=True, verbose_name="프로필 이미지")
     def __str__(self):
         return f"{self.department} {self.name} {self.position} ({self.role})"
 
