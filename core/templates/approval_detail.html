@@ -1,68 +1,37 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>문서 상세 - 꼼망컴퍼니 CIS</title>
+{% extends 'base.html' %}
+
+{% block extra_head %}
     <script src="https://cdn.ckeditor.com/ckeditor5/34.0.0/classic/ckeditor.js"></script>
-    <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
-        body { margin: 0; display: flex; height: 100vh; background-color: #f0f2f5; overflow: hidden; }
-        a { text-decoration: none; color: inherit; }
-        
-        /* 사이드바 스타일 */
-        .sidebar { width: 260px; background-color: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
-        .logo { font-size: 18px; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; color: #fff; cursor: pointer; }
-        .menu-btn { width: 100%; padding: 12px 15px; border-radius: 6px; font-size: 14px; font-weight: 600; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; transition: opacity 0.2s; }
-        .btn-orange { background: linear-gradient(135deg, #f2994a, #f2c94c); }
-        .btn-blue { background: linear-gradient(135deg, #2980b9, #3498db); }
-        .btn-purple { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
-        
-        /* 컨텐츠 영역 */
-        .content-area { flex: 1; padding: 40px; overflow-y: auto; display: flex; justify-content: center; }
-        .paper { width: 100%; max-width: 900px; background: white; padding: 50px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: fit-content; }
-        
-        /* 에디터 높이 설정 */
-        .ck-editor__editable_inline {
-            min-height: 550px;
-            font-family: 'Malgun Gothic', sans-serif;
-        }
+{% endblock %}
 
-        .doc-header { border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .action-bar { border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px; }
-        .btn { padding: 10px 20px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
-        .btn-approve { background-color: #2ecc71; color: white; }
-        .btn-save { background-color: #3498db; color: white; }
-        .btn-back { background-color: #95a5a6; color: white; }
-    </style>
-</head>
-<body>
-    <div class="sidebar">
-        <a href="{% url 'index' %}" class="logo">🏢 꼼망컴퍼니 CIS</a>
-        <a href="{% url 'create_self_approval' %}" class="menu-btn btn-orange">📝 직접 기안 작성</a>
-        <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
-        <a href="{% url 'org_chart' %}" class="menu-btn btn-purple">📊 조직도 보기</a>
-    </div>
+{% block extra_style %}
+    .content-area { flex: 1; padding: 40px; overflow-y: auto; display: flex; justify-content: center; }
+    .paper { width: 100%; max-width: 900px; background: white; padding: 50px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: fit-content; }
+    .ck-editor__editable_inline { min-height: 550px; font-family: 'Malgun Gothic', sans-serif; }
+    .doc-header { border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .action-bar { border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px; }
+    .btn { padding: 10px 20px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
+    .btn-approve { background-color: #2ecc71; color: white; }
+    .btn-save { background-color: #3498db; color: white; }
+    .btn-back { background-color: #95a5a6; color: white; }
+{% endblock %}
 
+{% block content %}
     <div class="content-area">
         <div class="paper">
             <div class="doc-header">
                 <div style="font-size: 24px; font-weight: bold;">{{ approval.title }}</div>
                 <div style="font-size: 12px; color: #888;">문서번호: {{ approval.id }}</div>
             </div>
-            
             <form method="post" id="approvalForm">
                 {% csrf_token %}
                 <div class="doc-body">
                     {% if approval.status == 'approved' or approval.status == 'rejected' %}
-                        <div style="border:1px solid #eee; padding:20px; background-color: #fff;">
-                            {{ approval.content|safe }}
-                        </div>
+                        <div style="border:1px solid #eee; padding:20px; background-color: #fff;">{{ approval.content|safe }}</div>
                     {% else %}
                         <textarea name="content" id="editor">{{ approval.content }}</textarea>
                     {% endif %}
                 </div>
-
                 <div class="action-bar">
                     <a href="{% url 'approval_list' %}" class="btn btn-back">목록으로</a>
                     {% if approval.status != 'approved' and approval.status != 'rejected' %}
@@ -73,36 +42,13 @@
             </form>
         </div>
     </div>
-
     <script>
-        // CKEditor 5 설정: 모든 HTML 태그 및 인라인 스타일 허용
         if (document.querySelector('#editor')) {
-            ClassicEditor
-                .create(document.querySelector('#editor'), {
-                    language: 'ko',
-                    // 행안부 서식(style="") 보존을 위한 핵심 설정
-                    htmlSupport: {
-                        allow: [
-                            {
-                                name: /.*/,        // 모든 태그 허용
-                                attributes: true,  // 모든 속성 허용
-                                classes: true,     // 모든 클래스 허용
-                                styles: true       // 모든 인라인 스타일 허용
-                            }
-                        ]
-                    },
-                    toolbar: [
-                        'heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 
-                        'insertTable', 'blockQuote', 'undo', 'redo'
-                    ]
-                })
-                .then(editor => {
-                    console.log('에디터가 성공적으로 로드되었습니다.');
-                })
-                .catch(error => {
-                    console.error('에디터 로드 에러:', error);
-                });
+            ClassicEditor.create(document.querySelector('#editor'), {
+                language: 'ko',
+                htmlSupport: { allow: [{ name: /.*/, attributes: true, classes: true, styles: true }] },
+                toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'insertTable', 'blockQuote', 'undo', 'redo']
+            });
         }
     </script>
-</body>
-</html>
+{% endblock %}
