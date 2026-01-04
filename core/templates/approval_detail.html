@@ -1,54 +1,112 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
-{% block extra_head %}
-    <script src="https://cdn.ckeditor.com/ckeditor5/34.0.0/classic/ckeditor.js"></script>
-{% endblock %}
-
-{% block extra_style %}
-    .content-area { flex: 1; padding: 40px; overflow-y: auto; display: flex; justify-content: center; }
-    .paper { width: 100%; max-width: 900px; background: white; padding: 50px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); height: fit-content; }
-    .ck-editor__editable_inline { min-height: 550px; font-family: 'Malgun Gothic', sans-serif; }
-    .doc-header { border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-    .action-bar { border-top: 1px solid #eee; padding-top: 20px; margin-top: 30px; display: flex; justify-content: flex-end; gap: 10px; }
-    .btn { padding: 10px 20px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
-    .btn-approve { background-color: #2ecc71; color: white; }
-    .btn-save { background-color: #3498db; color: white; }
-    .btn-back { background-color: #95a5a6; color: white; }
-{% endblock %}
+{% block title %}결재 상세 - 꼼망컴퍼니 CIS{% endblock %}
 
 {% block content %}
-    <div class="content-area">
-        <div class="paper">
-            <div class="doc-header">
-                <div style="font-size: 24px; font-weight: bold;">{{ approval.title }}</div>
-                <div style="font-size: 12px; color: #888;">문서번호: {{ approval.id }}</div>
+<style>
+    /* 공문서 표준 컨테이너 및 배경 */
+    .official-doc-container { padding: 40px; background-color: #f4f4f4; display: flex; justify-content: center; overflow-y: auto; height: 100%; }
+    
+    .official-document {
+        width: 210mm; min-height: 297mm; background: white; padding: 20mm;
+        box-shadow: 0 0 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; color: #000;
+    }
+
+    /* 두문 영역 (Header) */
+    .doc-header { border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 25px; }
+    .org-name { font-size: 26px; font-weight: 900; text-align: center; letter-spacing: 8px; margin-bottom: 25px; }
+    
+    .header-info-grid { display: grid; grid-template-columns: 80px 1fr; gap: 8px; font-size: 14px; }
+    .info-label { font-weight: 700; display: flex; align-items: center; }
+    .editable-input { border: 1px solid #ddd; padding: 4px 8px; border-radius: 4px; width: 100%; font-size: 14px; }
+
+    /* 본문 영역 (Body) */
+    .doc-body { flex: 1; margin-top: 10px; }
+    .title-area { display: flex; align-items: center; gap: 10px; margin-bottom: 25px; }
+    .title-label { font-size: 18px; font-weight: 800; white-space: nowrap; }
+    .title-input { font-size: 18px; font-weight: 800; border: 1px solid #ddd; padding: 5px; width: 100%; }
+
+    .doc-content {
+        width: 100%; border: none; outline: none; resize: none; min-height: 500px;
+        font-size: 15px; line-height: 1.8; text-align: justify; white-space: pre-wrap;
+    }
+
+    /* 결문 영역 (Footer) */
+    .doc-footer { margin-top: 40px; border-top: 1px solid #000; padding-top: 20px; }
+    .footer-stamp { text-align: center; font-size: 22px; font-weight: 900; margin: 40px 0; letter-spacing: 12px; }
+    .footer-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px; color: #333; }
+
+    /* 플로팅 액션 패널 */
+    .action-panel { position: fixed; right: 50px; top: 100px; display: flex; flex-direction: column; gap: 15px; }
+    .btn-action { width: 150px; padding: 12px; border-radius: 8px; font-weight: 700; cursor: pointer; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; }
+    .btn-approve { background: #27ae60; color: white; }
+    .btn-reject { background: #e74c3c; color: white; }
+    .btn-save { background: #3498db; color: white; }
+    .btn-action:hover { transform: translateY(-2px); filter: brightness(1.1); }
+</style>
+
+<div class="official-doc-container">
+    <form method="post" class="official-document">
+        {% csrf_token %}
+        
+        <div class="doc-header">
+            <div class="org-name">꼼 망 컴 퍼 니</div>
+            <div class="header-info-grid">
+                <div class="info-label">수신</div>
+                <div><input type="text" name="recipient" class="editable-input" value="사장실(대표이사)"></div>
+                <div class="info-label">경유</div>
+                <div><input type="text" name="via" class="editable-input" value="해당없음"></div>
             </div>
-            <form method="post" id="approvalForm">
-                {% csrf_token %}
-                <div class="doc-body">
-                    {% if approval.status == 'approved' or approval.status == 'rejected' %}
-                        <div style="border:1px solid #eee; padding:20px; background-color: #fff;">{{ approval.content|safe }}</div>
-                    {% else %}
-                        <textarea name="content" id="editor">{{ approval.content }}</textarea>
-                    {% endif %}
-                </div>
-                <div class="action-bar">
-                    <a href="{% url 'approval_list' %}" class="btn btn-back">목록으로</a>
-                    {% if approval.status != 'approved' and approval.status != 'rejected' %}
-                        <button type="submit" name="action" value="save" class="btn btn-save">내용만 저장</button>
-                        <button type="submit" name="action" value="approve" class="btn btn-approve">최종 승인</button>
-                    {% endif %}
-                </div>
-            </form>
         </div>
-    </div>
-    <script>
-        if (document.querySelector('#editor')) {
-            ClassicEditor.create(document.querySelector('#editor'), {
-                language: 'ko',
-                htmlSupport: { allow: [{ name: /.*/, attributes: true, classes: true, styles: true }] },
-                toolbar: ['heading', '|', 'bold', 'italic', 'link', 'bulletedList', 'numberedList', 'insertTable', 'blockQuote', 'undo', 'redo']
-            });
-        }
-    </script>
+
+        <div class="doc-body">
+            <div class="title-area">
+                <div class="title-label">제목:</div>
+                <input type="text" name="title" class="title-input" value="{{ approval.title }}">
+            </div>
+            
+            <textarea name="content" class="doc-content">
+1. 관련: {{ approval.title }}
+
+2. 위 관련, 당사 {% if approval.agent %}{{ approval.agent.department }}{% else %}운용부서{% endif %}에서 관리 중인 종목에 대하여 아래와 같이 매수 집행을 완료하고 기안하오니 검토 후 승인하여 주시기 바랍니다.
+
+{% if approval.investment_log %}
+  가. 종목코드: {{ approval.investment_log.stock_code }}
+  나. 매수일시: {{ approval.investment_log.created_at|date:"Y-m-d H:i" }}
+  다. 매수수량: {{ approval.investment_log.quantity }}주
+  라. 매수단가: {{ approval.investment_log.avg_price|floatformat:0 }}원
+  마. 총 매수금액: {{ approval.investment_log.total_amount|floatformat:0 }}원
+{% else %}
+  (상세 매수 정보가 존재하지 않습니다.)
+{% endif %}
+
+3. 향후 해당 종목의 시장 동향을 지속적으로 모니터링하여 투자 전략에 반영할 예정입니다.
+
+붙임  거래 증빙 자료 1부.  끝.</textarea>
+        </div>
+
+        <div class="doc-footer">
+            <div class="footer-stamp">꼼망컴퍼니 대표이사</div>
+            
+            <div class="footer-meta">
+                <div>기안자: {% if approval.agent %}{{ approval.agent.name }} {{ approval.agent.position }}{% else %}{{ approval.drafter.username }}{% endif %}</div>
+                <div>결재자: {{ user.username }} (CEO)</div>
+                <div>시행일자: {{ approval.created_at|date:"Y. m. d." }}</div>
+                <div>문서번호: CIS-{{ approval.id }}</div>
+            </div>
+        </div>
+
+        <div class="action-panel">
+            {% if approval.status == 'pending' or approval.status == 'draft' %}
+                <button type="submit" name="action" value="save" class="btn-action btn-save">💾 내용 수정</button>
+                <button type="submit" name="action" value="reject" class="btn-action btn-reject">❌ 결재 반려</button>
+                <button type="submit" name="action" value="approve" class="btn-action btn-approve">✅ 최종 승인</button>
+            {% else %}
+                <div style="background: #eee; padding: 15px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold;">
+                    완료된 문서<br>({{ approval.get_status_display }})
+                </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
 {% endblock %}

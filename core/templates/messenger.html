@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-
 {% block content %}
 <style>
     .chat-container { flex: 1; display: flex; flex-direction: column; background-color: #f2f5f9; height: 100vh; }
@@ -11,34 +10,77 @@
     .bubble { padding: 14px 18px; border-radius: 12px; font-size: 15px; line-height: 1.5; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: fit-content; max-width: 70%; word-break: break-word; }
     .sent .bubble { background-color: #3b82f6; color: white; border-top-right-radius: 2px; }
     .received .bubble { background-color: white; border: 1px solid #e2e8f0; border-top-left-radius: 2px; }
-    .input-area { background-color: white; padding: 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; }
-    .input-area input { flex: 1; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; }
-    .input-area button { background-color: #22c55e; color: white; border: none; padding: 0 25px; border-radius: 8px; font-weight: 600; cursor: pointer; }
 </style>
 
 <div class="chat-container">
     <div class="chat-header">
-    {% if active_agent %}
-        {{ active_agent.department }} {{ active_agent.name }} {{ active_agent.position }}
-    {% else %}
-        대화할 직원을 선택해 주세요
-    {% endif %}
+        {% if active_agent %}
+            {{ active_agent.department }} {{ active_agent.name }} {{ active_agent.position }}
+        {% else %}
+            대화할 직원을 선택해 주세요
+        {% endif %}
     </div>
+
     <div class="chat-box" id="chatBox">
         {% for msg in messages %}
         <div class="message-row {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
             <div class="bubble">{{ msg.content|linebreaksbr }}</div>
         </div>
-        {% empty %}
-        <div class="message-row received">
-            <div class="bubble">{{ initial_greeting }}</div>
-        </div>
         {% endfor %}
     </div>
-    <form class="input-area" method="post">
-        {% csrf_token %}
-        <input type="text" name="message" placeholder="메시지를 입력하세요..." required>
-        <button type="submit">전송</button>
-    </form>
+    
+    <div class="p-3 bg-white border-top">
+        {% if active_agent %}
+        <div class="d-flex gap-2 mb-2">
+            <button class="btn btn-outline-primary btn-sm" onclick="applyForm('buy')">📈 매수지시</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="applyForm('sell')">📉 매도지시</button>
+            <button class="btn btn-outline-success btn-sm" onclick="applyForm('perf')">📊 성과보고</button>
+            <button class="btn btn-outline-dark btn-sm" onclick="applyForm('market')">🌐 시장보고</button>
+        </div>
+        {% endif %}
+
+        <form method="post" class="d-flex gap-2">
+            {% csrf_token %}
+            <input type="text" name="message" id="msgInput" class="form-control" placeholder="메시지를 입력하거나 위 버튼을 클릭하세요..." required>
+            <button type="submit" class="btn btn-primary" style="min-width: 80px;">전송</button>
+        </form>
+    </div>
 </div>
+
+
+
+<script>
+function applyForm(type) {
+    const input = document.getElementById('msgInput');
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Agent의 ticker 정보를 템플릿 변수로 가져옴
+    const ticker = "{{ active_agent.ticker|default:'' }}";
+    
+    const forms = {
+        // 하드코딩된 숫자와 종목명을 제거하고 변수와 빈칸으로 대체
+        'buy': `[매수] 종목:${ticker}, 수량: , 총액: , 거래일:${today}`,
+        'sell': `[매도] 종목:${ticker}, 수량: , 총액: , 거래일:${today}`,
+        'perf': `[성과] 종목:${ticker}, 기간:${today} ~ ${today}, 수익률: %`,
+        'market': `[시장] 일자:${today}, 핵심내용: `
+    };
+    
+    input.value = forms[type];
+    
+    // 입력창으로 커서 이동 및 포커스
+    input.focus();
+    
+    // 수량 입력하기 편하게 커서 위치 조정 (선택 사항)
+    if(type === 'buy' || type === 'sell') {
+        const pos = input.value.indexOf('수량:') + 3;
+        input.setSelectionRange(pos, pos);
+    }
+}
+
+// 페이지 로드 시 채팅창 하단으로 스크롤
+window.onload = function() {
+    const chatBox = document.getElementById('chatBox');
+    chatBox.scrollTop = chatBox.scrollHeight;
+};
+</script>
 {% endblock %}

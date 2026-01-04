@@ -1,8 +1,7 @@
-#config/urls.py
 from django.contrib import admin
 from django.urls import path
-from django.conf import settings # 추가: 프로젝트 설정을 가져오기 위함
-from django.conf.urls.static import static # 추가: 정적/미디어 파일 서빙용
+from django.conf import settings 
+from django.conf.urls.static import static 
 from django.contrib.auth import views as auth_views
 from core import views
 
@@ -17,22 +16,26 @@ urlpatterns = [
     # 1. 메인 홈
     path('', views.index, name='index'),
 
-    # 2. 메신저
+    # 2. 메신저 (AI 직원 대화)
     path('messenger/', views.messenger, name='messenger'),
     path('messenger/<int:agent_id>/', views.messenger, name='messenger'),
 
-    # 3. 결재 관련 (작성, 목록, 상세)
+    # 3. 투자 관리 (신규 추가: 꼼먕 투자일지 포트폴리오)
+    # investment_management 함수와 연결
+    path('investment/', views.investment_management, name='investment_management'),
+
+    # 4. 결재 관련 (작성, 목록, 상세)
+    # approval_detail에서 투자 로그(InvestmentLog) 연동 처리
     path('approval/create/', views.create_self_approval, name='create_self_approval'),
     path('approval/list/', views.approval_list, name='approval_list'),
     path('approval/detail/<int:pk>/', views.approval_detail, name='approval_detail'),
 
-    # 4. 조직도
+    # 5. 조직도
     path('org/', views.org_chart, name='org_chart'),
 ]
 
-# ▼▼▼ [중요] 개발 환경에서 미디어/정적 파일을 서빙하기 위한 설정 추가 ▼▼▼
+# 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정
 if settings.DEBUG:
-    # 프로필 이미지 등 미디어 파일 설정
+    # Agent의 profile_image 등 미디어 파일 처리를 위해 필수
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    # CSS, JS 등 정적 파일 설정
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
