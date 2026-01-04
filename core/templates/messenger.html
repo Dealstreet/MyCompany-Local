@@ -1,27 +1,184 @@
 {% extends 'base.html' %}
 {% block content %}
 <style>
-    .chat-container { flex: 1; display: flex; flex-direction: column; background-color: #f2f5f9; height: 100vh; }
-    .chat-header { height: 60px; background-color: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; padding: 0 25px; font-weight: 700; color: #1e293b; }
-    .chat-box { flex: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
-    .message-row { display: flex; width: 100%; }
+    /* 전체 레이아웃: 화면 꽉 채우기 */
+    .chat-container { 
+        flex: 1; 
+        display: flex; 
+        flex-direction: column; 
+        background-color: #f0f2f5; /* 눈이 편한 배경색 */
+        height: 100vh; 
+        overflow: hidden;
+    }
+
+    /* 1. 헤더 영역 */
+    .chat-header { 
+        height: 70px; 
+        background-color: white; 
+        border-bottom: 1px solid #e2e8f0; 
+        display: flex; 
+        align-items: center; 
+        padding: 0 30px; 
+        font-weight: 700; 
+        color: #1e293b;
+        font-size: 18px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        z-index: 10;
+    }
+
+    /* 2. 채팅 내용 영역 */
+    .chat-box { 
+        flex: 1; 
+        padding: 30px; 
+        overflow-y: auto; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 20px; 
+    }
+
+    /* 말풍선 스타일 */
+    .message-row { display: flex; width: 100%; margin-bottom: 10px; }
     .sent { justify-content: flex-end; }
     .received { justify-content: flex-start; }
-    .bubble { padding: 14px 18px; border-radius: 12px; font-size: 15px; line-height: 1.5; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: fit-content; max-width: 70%; word-break: break-word; }
-    .sent .bubble { background-color: #3b82f6; color: white; border-top-right-radius: 2px; }
-    .received .bubble { background-color: white; border: 1px solid #e2e8f0; border-top-left-radius: 2px; }
+    
+    .bubble { 
+        padding: 12px 18px; 
+        border-radius: 16px; 
+        font-size: 15px; 
+        line-height: 1.6; 
+        max-width: 65%; 
+        word-break: break-word; 
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        position: relative;
+    }
+    
+    /* 내가 보낸 메시지 (파란색) */
+    .sent .bubble { 
+        background-color: #3b82f6; 
+        color: white; 
+        border-bottom-right-radius: 4px; /* 말꼬리 효과 */
+    }
+    
+    /* 받은 메시지 (흰색) */
+    .received .bubble { 
+        background-color: white; 
+        color: #334155; 
+        border: 1px solid #e2e8f0; 
+        border-bottom-left-radius: 4px; /* 말꼬리 효과 */
+    }
+
+    /* 3. 하단 입력 및 액션 영역 (핵심 수정 부분) */
+    .chat-footer {
+        background-color: white;
+        border-top: 1px solid #e2e8f0;
+        padding: 20px 30px;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.02);
+    }
+
+    /* 빠른 실행 버튼 바 (Toolbar) */
+    .action-toolbar {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        padding-bottom: 5px; /* 스크롤바 공간 */
+    }
+    
+    .action-btn {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        border: 1px solid;
+        background: white;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .action-btn:hover { transform: translateY(-2px); }
+    
+    /* 버튼 색상 테마 */
+    .btn-buy { color: #dc2626; border-color: #fca5a5; background-color: #fef2f2; }
+    .btn-buy:hover { background-color: #fee2e2; }
+    
+    .btn-sell { color: #2563eb; border-color: #93c5fd; background-color: #eff6ff; }
+    .btn-sell:hover { background-color: #dbeafe; }
+    
+    .btn-perf { color: #059669; border-color: #6ee7b7; background-color: #ecfdf5; }
+    .btn-perf:hover { background-color: #d1fae5; }
+    
+    .btn-market { color: #475569; border-color: #cbd5e1; background-color: #f8fafc; }
+    .btn-market:hover { background-color: #f1f5f9; }
+
+    /* 입력 폼 디자인 */
+    .input-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background-color: #f8fafc;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 8px 15px;
+        transition: border-color 0.2s;
+    }
+    .input-wrapper:focus-within {
+        border-color: #3b82f6;
+        background-color: white;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .chat-input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        padding: 8px;
+        font-size: 15px;
+        outline: none;
+        color: #334155;
+    }
+
+    .send-btn {
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: 0.2s;
+    }
+    .send-btn:hover { background-color: #2563eb; }
+
 </style>
 
 <div class="chat-container">
     <div class="chat-header">
         {% if active_agent %}
-            {{ active_agent.department }} {{ active_agent.name }} {{ active_agent.position }}
+            <span style="font-size: 24px; margin-right: 10px;">🤖</span>
+            <div>
+                <div>{{ active_agent.department }} {{ active_agent.name }} {{ active_agent.position }}</div>
+                <div style="font-size: 12px; color: #64748b; font-weight: normal;">{{ active_agent.role }}</div>
+            </div>
         {% else %}
-            대화할 직원을 선택해 주세요
+            대화할 AI 직원을 선택해 주세요
         {% endif %}
     </div>
 
     <div class="chat-box" id="chatBox">
+        {% if initial_greeting %}
+        <div class="message-row received">
+            <div class="bubble">{{ initial_greeting }}</div>
+        </div>
+        {% endif %}
+
         {% for msg in messages %}
         <div class="message-row {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
             <div class="bubble">{{ msg.content|linebreaksbr }}</div>
@@ -29,36 +186,33 @@
         {% endfor %}
     </div>
     
-    <div class="p-3 bg-white border-top">
+    <div class="chat-footer">
         {% if active_agent %}
-        <div class="d-flex gap-2 mb-2">
-            <button class="btn btn-outline-primary btn-sm" onclick="applyForm('buy')">📈 매수지시</button>
-            <button class="btn btn-outline-danger btn-sm" onclick="applyForm('sell')">📉 매도지시</button>
-            <button class="btn btn-outline-success btn-sm" onclick="applyForm('perf')">📊 성과보고</button>
-            <button class="btn btn-outline-dark btn-sm" onclick="applyForm('market')">🌐 시장보고</button>
+        <div class="action-toolbar">
+            <button class="action-btn btn-buy" onclick="applyForm('buy')">📈 매수지시</button>
+            <button class="action-btn btn-sell" onclick="applyForm('sell')">📉 매도지시</button>
+            <button class="action-btn btn-perf" onclick="applyForm('perf')">📊 성과보고</button>
+            <button class="action-btn btn-market" onclick="applyForm('market')">🌐 시장보고</button>
         </div>
         {% endif %}
 
-        <form method="post" class="d-flex gap-2">
+        <form method="post" class="input-wrapper">
             {% csrf_token %}
-            <input type="text" name="message" id="msgInput" class="form-control" placeholder="메시지를 입력하거나 위 버튼을 클릭하세요..." required>
-            <button type="submit" class="btn btn-primary" style="min-width: 80px;">전송</button>
+            <input type="text" name="message" id="msgInput" class="chat-input" placeholder="메시지를 입력하세요..." autocomplete="off" required>
+            <button type="submit" class="send-btn" title="전송">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            </button>
         </form>
     </div>
 </div>
-
-
 
 <script>
 function applyForm(type) {
     const input = document.getElementById('msgInput');
     const today = new Date().toISOString().split('T')[0];
-    
-    // Agent의 ticker 정보를 템플릿 변수로 가져옴
     const ticker = "{{ active_agent.ticker|default:'' }}";
     
     const forms = {
-        // 하드코딩된 숫자와 종목명을 제거하고 변수와 빈칸으로 대체
         'buy': `[매수] 종목:${ticker}, 수량: , 총액: , 거래일:${today}`,
         'sell': `[매도] 종목:${ticker}, 수량: , 총액: , 거래일:${today}`,
         'perf': `[성과] 종목:${ticker}, 기간:${today} ~ ${today}, 수익률: %`,
@@ -66,18 +220,15 @@ function applyForm(type) {
     };
     
     input.value = forms[type];
-    
-    // 입력창으로 커서 이동 및 포커스
     input.focus();
     
-    // 수량 입력하기 편하게 커서 위치 조정 (선택 사항)
     if(type === 'buy' || type === 'sell') {
         const pos = input.value.indexOf('수량:') + 3;
         input.setSelectionRange(pos, pos);
     }
 }
 
-// 페이지 로드 시 채팅창 하단으로 스크롤
+// 스크롤 자동 내리기
 window.onload = function() {
     const chatBox = document.getElementById('chatBox');
     chatBox.scrollTop = chatBox.scrollHeight;

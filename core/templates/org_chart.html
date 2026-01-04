@@ -1,59 +1,92 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <title>조직도</title>
-    <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
-        body { margin: 0; display: flex; height: 100vh; background-color: #f0f2f5; overflow: hidden; }
-        a { text-decoration: none; color: inherit; }
-        
-        .sidebar { width: 260px; background-color: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
-        .logo { font-size: 18px; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; color: #fff; cursor: pointer; }
-        .menu-btn { width: 100%; padding: 12px 15px; border-radius: 6px; font-size: 14px; font-weight: 600; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; transition: opacity 0.2s; }
-        .menu-btn:hover { opacity: 0.9; }
-        .btn-orange { background: linear-gradient(135deg, #f2994a, #f2c94c); }
-        .btn-blue { background: linear-gradient(135deg, #2980b9, #3498db); }
-        .btn-purple { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
-        .section-title { font-size: 12px; color: #64748b; margin-top: 25px; margin-bottom: 15px; font-weight: 600; }
-        .profile-card { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; color: white; cursor: pointer; }
-        .profile-card:hover { background-color: rgba(255,255,255,0.1); }
-        
-        .content-area { flex: 1; padding: 40px; overflow-y: auto; }
-        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
-        
-        /* [수정] a태그로 바뀌어도 블록 형태로 보이게 display: block 추가 */
-        .org-card { display: block; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
-        .org-card:hover { border-color: #3b82f6; }
-        .org-icon { width: 60px; height: 60px; background-color: #f3f0ff; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
-        .org-name { font-weight: bold; font-size: 16px; margin-bottom: 5px; color:#333; }
-        .org-role { color: #888; font-size: 13px; }
-        .dept-title { font-size: 18px; font-weight: bold; margin: 30px 0 15px; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-        .dept-title:first-child { margin-top: 0; }
-    </style>
-</head>
-<body>
-    <div class="sidebar">
-    <a href="{% url 'index' %}" class="logo">🏢 꼼망컴퍼니 CIS</a>
-    <a href="{% url 'create_self_approval' %}" class="menu-btn btn-orange">📝 직접 기안 작성</a>
-    <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
-    <a href="{% url 'org_chart' %}" class="menu-btn btn-purple">📊 조직도 보기</a>
-    <div class="section-title">AI 직원 목록</div>
-    ...
+{% extends "base.html" %}
+
+{% block title %}조직도 - 꼼망컴퍼니 CIS{% endblock %}
+
+{% block content %}
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+<style>
+    .org-container {
+        padding: 40px;
+        background-color: #f8fafc;
+        height: 100%;
+        overflow: auto;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+    }
+
+    /* Google Chart 기본 테이블 선 제거 및 커스텀 */
+    table { border-collapse: separate !important; }
+    
+    /* 연결선 스타일 커스텀 */
+    .google-visualization-orgchart-lineleft { border-left: 2px solid #cbd5e1 !important; }
+    .google-visualization-orgchart-lineright { border-right: 2px solid #cbd5e1 !important; }
+    .google-visualization-orgchart-linebottom { border-bottom: 2px solid #cbd5e1 !important; }
+    .google-visualization-orgchart-connrow-medium { height: 30px; } /* 세로 간격 */
+
+    /* 노드 카드 공통 디자인 */
+    .node-card {
+        width: 160px;
+        padding: 10px;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        transition: 0.2s;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        text-decoration: none; color: inherit;
+    }
+    .node-card:hover { transform: translateY(-3px); box-shadow: 0 8px 12px rgba(0,0,0,0.1); border-color: #3b82f6; }
+
+    /* CEO 스타일 */
+    .ceo-card { border-top: 4px solid #3b82f6; background: #fff; }
+    .profile-icon { font-size: 24px; margin-bottom: 5px; }
+
+    /* 부서장 스타일 */
+    .dept-card { background: #1e293b; color: white; border: none; width: 140px; }
+    .dept-card .node-name { color: white; font-weight: bold; }
+
+    /* 직원 스타일 */
+    .agent-card { min-height: 100px; }
+    .img-circle {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: #f1f5f9; margin-bottom: 8px; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        border: 1px solid #e2e8f0; font-size: 20px;
+    }
+    
+    /* 텍스트 스타일 */
+    .node-name { font-weight: 800; font-size: 14px; margin-bottom: 2px; color: #1e293b; }
+    .node-role { font-size: 11px; color: #64748b; }
+
+    /* 구글 차트 기본 선택 효과 제거 */
+    .google-visualization-orgchart-node { border: none !important; background: none !important; box-shadow: none !important; }
+    .google-visualization-orgchart-node-medium { font-size: 1em; }
+</style>
+
+<div class="org-container">
+    <div id="chart_div"></div>
 </div>
 
-    <div class="content-area">
-        <div class="dept-title">👑 {{ org.name }} 임직원</div>
-        <div class="grid-container">
-            {% for agent in agents %}
-            <a href="{% url 'messenger' agent.id %}" class="org-card">
-                <div class="org-icon">🤖</div>
-                <div class="org-name">{{ agent.name }}</div>
-                <div class="org-role">{{ agent.department }} | {{ agent.role }}</div>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-</body>
-</html>
+<script type="text/javascript">
+    google.charts.load('current', {packages:["orgchart"]});
+    google.charts.setOnLoadCallback(drawChart);
+
+    function drawChart() {
+        var data = new google.visualization.DataTable();
+        data.addColumn('string', 'Name');
+        data.addColumn('string', 'Manager');
+        data.addColumn('string', 'ToolTip');
+
+        // Django에서 넘겨준 데이터 파싱
+        var chartData = JSON.parse('{{ chart_data|escapejs }}');
+        data.addRows(chartData);
+
+        // 차트 그리기
+        var chart = new google.visualization.OrgChart(document.getElementById('chart_div'));
+        chart.draw(data, {'allowHtml':true, 'nodeClass': 'my-node'});
+    }
+</script>
+{% endblock %}
