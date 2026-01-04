@@ -1,6 +1,6 @@
 import datetime
 import re
-import json  # [필수] JSON 데이터 처리를 위해 추가
+import json
 from itertools import groupby
 from operator import attrgetter
 
@@ -22,13 +22,27 @@ def index(request):
     agents = get_sidebar_agents(request.user)
     return render(request, 'index.html', {'agents': agents})
 
-# 2. 메신저
+# 2. [수정됨] 메신저 (멈춘 메시지 강제 종료 기능 추가)
 @login_required
 def messenger(request, agent_id=None):
     user = request.user
     if not user.organization:
         return render(request, 'error.html', {'message': "소속된 회사가 없습니다."})
-        
+    
+    # [핵심 추가] 1분 이상 '처리 중' 상태로 멈춰있는 좀비 메시지 강제 종료
+    # 페이지를 열 때마다 자동으로 체크해서 멈춘 녀석들을 정리합니다.
+    try:
+        limit_time = timezone.now() - datetime.timedelta(minutes=1)
+        stuck_msgs = Message.objects.filter(
+            user=user,
+            content='[PROCESSING]',
+            created_at__lt=limit_time
+        )
+        # 멈춘 메시지 내용 변경
+        stuck_msgs.update(content="⚠️ 시스템 오류로 인해 처리가 중단되었습니다. 다시 지시해 주세요.")
+    except Exception as e:
+        print(f"메시지 정리 중 오류: {e}")
+
     agents = get_sidebar_agents(user)
     active_agent = None
     messages = []
@@ -47,7 +61,18 @@ def messenger(request, agent_id=None):
             user_input = request.POST.get('message')
             if user_input:
                 Message.objects.create(agent=active_agent, user=user, role='user', content=user_input)
-                create_approval_draft.delay(user_input, active_agent.id, user.id, user.organization.id)
+                
+                # 임시 메시지 생성
+                temp_msg = Message.objects.create(
+                    agent=active_agent, 
+                    user=user, 
+                    role='assistant', 
+                    content="[PROCESSING]" 
+                )
+                
+                # Celery 태스크 호출 (인자 5개)
+                create_approval_draft.delay(user_input, active_agent.id, user.id, user.organization.id, temp_msg.id)
+                
                 return redirect('messenger', agent_id=agent_id)
 
     return render(request, 'messenger.html', {
@@ -62,21 +87,74 @@ def messenger(request, agent_id=None):
 def investment_management(request):
     user = request.user
     agents = get_sidebar_agents(user)
-    portfolio = InvestmentLog.objects.filter(agent__organization=user.organization, status='approved').order_by('-approved_at')
-    drafts = Approval.objects.filter(organization=user.organization, report_type__in=['buy', 'sell'], status='pending').order_by('-created_at')
+    
+    # 1. 포트폴리오 (현재 보유 중인 종목)
+    portfolio = InvestmentLog.objects.filter(
+        agent__organization=user.organization, 
+        status='approved'
+    ).order_by('-approved_at')
+    
+    # 2. 결재 대기 목록
+    drafts = Approval.objects.filter(
+        organization=user.organization,
+        report_type__in=['buy', 'sell'],
+        status='pending'
+    ).order_by('-created_at')
+
+    # 3. [추가] 재무 현황 요약 데이터 계산
+    # (실제 주가 데이터가 연동되면 current_price를 반영해야 하지만, 지금은 매수가 기준으로 계산)
+    total_buy_amount = 0
+    total_count = portfolio.count()
+    
+    for item in portfolio:
+        total_buy_amount += item.total_amount
+
+    # 가상의 수익률 시뮬레이션 (추후 주가 API 연동 시 교체)
+    # 현재는 원금 = 평가액으로 설정 (수익률 0%)
+    summary = {
+        'count': total_count,
+        'total_buy': total_buy_amount,         # 총 매수금액 (현재 보유분)
+        'total_sell': 0,                       # 총 매도금액 (실현손익 로그 연동 필요)
+        'principal': total_buy_amount,         # 원금
+        'eval_balance': total_buy_amount,      # 평가잔액 (현재가 * 수량)
+        'yield': 0.0,                          # 수익률
+        'yield_color': 'text-dark'             # 수익률 색상 (빨강/파랑)
+    }
 
     return render(request, 'investment_management.html', {
         'agents': agents,
         'portfolio': portfolio,
-        'drafts': drafts
+        'drafts': drafts,
+        'summary': summary  # [추가] 요약 데이터 전달
     })
 
 # 4. 전자결재함
 @login_required
 def approval_list(request):
     agents = get_sidebar_agents(request.user)
-    approvals = Approval.objects.filter(organization=request.user.organization).order_by('-created_at')
-    return render(request, 'approval_list.html', {'agents': agents, 'approvals': approvals})
+    
+    # 1. URL에서 필터 조건 가져오기 (기본값: 'all')
+    status_filter = request.GET.get('status', 'all')
+    
+    # 2. 기본 쿼리셋 (전체)
+    approvals = Approval.objects.filter(organization=request.user.organization)
+    
+    # 3. 필터링 적용
+    if status_filter == 'pending':
+        approvals = approvals.filter(status='pending')
+    elif status_filter == 'approved':
+        approvals = approvals.filter(status='approved')
+    elif status_filter == 'rejected':
+        approvals = approvals.filter(status='rejected')
+    
+    # 최신순 정렬
+    approvals = approvals.order_by('-created_at')
+
+    return render(request, 'approval_list.html', {
+        'agents': agents, 
+        'approvals': approvals,
+        'current_status': status_filter # 탭 활성화를 위해 현재 상태 전달
+    })
 
 # 5. 결재 상세
 @login_required
@@ -133,17 +211,15 @@ def create_self_approval(request):
         return redirect('approval_detail', pk=approval.id)
     return render(request, 'create_approval.html', {'agents': agents})
 
-# 7. [수정됨] 조직도 (Google Charts 데이터 생성 로직)
+# 7. 조직도 (Google Charts용)
 @login_required
 def org_chart(request):
     user = request.user
     agents = get_sidebar_agents(user)
     
-    # Google Charts용 데이터 리스트 초기화
-    # 형식: [ [{v:'id', f:'html'}, 'parent_id', 'tooltip'], ... ]
     chart_data = []
-
-    # (1) CEO 노드 (Root)
+    
+    # CEO
     ceo = User.objects.filter(organization=user.organization, role='ceo').first()
     ceo_name = ceo.username if ceo else "CEO"
     ceo_id = "ceo_node"
@@ -157,11 +233,9 @@ def org_chart(request):
     """
     chart_data.append([{'v': ceo_id, 'f': ceo_html}, '', 'CEO'])
 
-    # (2) 부서 및 직원 노드
+    # 부서 및 직원
     agents_sorted = agents.order_by('department')
-    
     for dept_name, members in groupby(agents_sorted, attrgetter('department')):
-        # 2-1. 부서장(Division) 노드 -> CEO 밑에 연결
         dept_id = f"dept_{dept_name}"
         dept_html = f"""
             <div class="node-card dept-card">
@@ -170,11 +244,8 @@ def org_chart(request):
         """
         chart_data.append([{'v': dept_id, 'f': dept_html}, ceo_id, dept_name])
 
-        # 2-2. 직원 노드 -> 해당 부서장 밑에 연결
         for agent in members:
             agent_id = f"agent_{agent.id}"
-            
-            # 이미지 처리
             img_html = "🤖"
             if agent.profile_image:
                 img_html = f"<img src='{agent.profile_image.url}' style='width:100%; height:100%; object-fit:cover;'>"
@@ -188,7 +259,6 @@ def org_chart(request):
             """
             chart_data.append([{'v': agent_id, 'f': agent_html}, dept_id, agent.role])
 
-    # JSON 변환 후 템플릿 전달
     return render(request, 'org_chart.html', {
         'agents': agents, 
         'chart_data': json.dumps(chart_data), 

@@ -1,43 +1,130 @@
-{% extends "base.html" %}
-
+{% extends 'base.html' %}
 {% block title %}전자결재함 - 꼼망컴퍼니 CIS{% endblock %}
 
 {% block content %}
 <style>
-    .content-area { padding: 40px; overflow-y: auto; width: 100%; }
-    .list-header { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #1e293b; }
-    .doc-list { background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); overflow: hidden; }
-    .doc-item { display: flex; padding: 20px; border-bottom: 1px solid #eee; align-items: center; cursor: pointer; transition: 0.1s; width: 100%; text-align: left; }
-    .doc-item:hover { background-color: #f8fafc; }
-    .doc-title { font-weight: bold; font-size: 16px; margin-bottom: 5px; color: #333; }
-    .doc-meta { font-size: 13px; color: #888; }
-    .doc-icon { font-size: 24px; margin-right: 20px; }
-    .doc-info { flex: 1; }
-    .badge { padding: 5px 10px; border-radius: 15px; font-size: 12px; font-weight: bold; }
-    /* 상태별 배지 색상 */
-    .badge-pending { background-color: #fff3cd; color: #856404; }
-    .badge-approved { background-color: #d4edda; color: #155724; }
-    .badge-rejected { background-color: #f8d7da; color: #721c24; }
-    .badge-draft { background-color: #e2e3e5; color: #383d41; }
+    /* 전체 컨테이너 */
+    .approval-container {
+        padding: 40px;
+        background-color: #f8fafc;
+        min-height: 100vh;
+    }
+
+    /* 1. 헤더 및 작성 버튼 */
+    .page-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 30px;
+    }
+    .page-title { font-size: 24px; font-weight: 800; color: #1e293b; }
+    
+    .btn-new {
+        background-color: #3b82f6; color: white; padding: 10px 20px;
+        border-radius: 8px; font-weight: 700; text-decoration: none;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2); transition: 0.2s;
+    }
+    .btn-new:hover { background-color: #2563eb; transform: translateY(-2px); }
+
+    /* 2. 필터 탭 (핵심 UI) */
+    .filter-tabs {
+        display: flex; gap: 10px; margin-bottom: 20px;
+        border-bottom: 1px solid #e2e8f0; padding-bottom: 15px;
+    }
+    
+    .tab-item {
+        padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;
+        text-decoration: none; color: #64748b; background: white;
+        border: 1px solid #e2e8f0; transition: all 0.2s;
+    }
+    
+    .tab-item:hover { background-color: #f1f5f9; }
+    
+    /* 활성화된 탭 스타일 */
+    .tab-item.active {
+        background-color: #1e293b; color: white; border-color: #1e293b;
+    }
+    
+    /* 3. 문서 리스트 카드 */
+    .doc-list { display: flex; flex-direction: column; gap: 15px; }
+
+    .doc-item {
+        background: white; padding: 20px; border-radius: 12px;
+        border: 1px solid #e2e8f0; display: flex; align-items: center;
+        justify-content: space-between; transition: 0.2s; cursor: pointer;
+        text-decoration: none; color: inherit;
+    }
+    .doc-item:hover {
+        transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+        border-color: #cbd5e1;
+    }
+
+    /* 문서 정보 */
+    .doc-info { display: flex; flex-direction: column; gap: 5px; }
+    .doc-title { font-size: 16px; font-weight: 700; color: #1e293b; }
+    .doc-meta { font-size: 13px; color: #94a3b8; display: flex; gap: 10px; align-items: center; }
+
+    /* 상태 뱃지 (Status Badge) */
+    .status-badge {
+        padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 800;
+        display: flex; align-items: center; gap: 5px; min-width: 80px; justify-content: center;
+    }
+    
+    /* 상태별 색상 */
+    .status-pending { background-color: #fff7ed; color: #ea580c; border: 1px solid #ffedd5; } /* 주황 */
+    .status-approved { background-color: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; } /* 초록 */
+    .status-rejected { background-color: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; } /* 빨강 */
+    .status-draft { background-color: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; } /* 회색 */
+
+    /* 데이터 없음 */
+    .empty-state {
+        text-align: center; padding: 60px; color: #94a3b8;
+        font-size: 15px; font-weight: 500;
+    }
 </style>
 
-<div class="content-area">
-    <div class="list-header">📂 전자결재함</div>
+<div class="approval-container">
+    <div class="page-header">
+        <div class="page-title">📂 전자결재함</div>
+        <a href="{% url 'create_self_approval' %}" class="btn-new">✏️ 직접 기안 작성</a>
+    </div>
+
+    <div class="filter-tabs">
+        <a href="?status=all" class="tab-item {% if current_status == 'all' %}active{% endif %}">전체 문서</a>
+        <a href="?status=pending" class="tab-item {% if current_status == 'pending' %}active{% endif %}">⏳ 대기중</a>
+        <a href="?status=approved" class="tab-item {% if current_status == 'approved' %}active{% endif %}">✅ 승인됨</a>
+        <a href="?status=rejected" class="tab-item {% if current_status == 'rejected' %}active{% endif %}">❌ 반려됨</a>
+    </div>
+
     <div class="doc-list">
         {% for doc in approvals %}
         <a href="{% url 'approval_detail' doc.id %}" class="doc-item">
-            <div class="doc-icon">📑</div>
             <div class="doc-info">
-                <div class="doc-title">{{ doc.title }}</div>
+                <div class="doc-title">
+                    {% if doc.report_type == 'buy' %}📈 [매수]{% elif doc.report_type == 'sell' %}📉 [매도]{% else %}📄 [일반]{% endif %}
+                    {{ doc.title }}
+                </div>
                 <div class="doc-meta">
-                    기안자: {% if doc.drafter %}{{ doc.drafter.username }}{% else %}{{ doc.agent.name }}(AI){% endif %} 
-                    | 작성일: {{ doc.created_at|date:"Y-m-d" }}
+                    <span>기안자: {% if doc.agent %}{{ doc.agent.name }}{% else %}{{ doc.drafter.username }}{% endif %}</span>
+                    <span>|</span>
+                    <span>{{ doc.created_at|date:"Y-m-d H:i" }}</span>
                 </div>
             </div>
-            <span class="badge badge-{{ doc.status }}">{{ doc.get_status_display }}</span>
+
+            <div>
+                {% if doc.status == 'pending' %}
+                    <div class="status-badge status-pending">⏳ 결재 대기</div>
+                {% elif doc.status == 'approved' %}
+                    <div class="status-badge status-approved">✅ 승인 완료</div>
+                {% elif doc.status == 'rejected' %}
+                    <div class="status-badge status-rejected">❌ 반려됨</div>
+                {% else %}
+                    <div class="status-badge status-draft">임시 저장</div>
+                {% endif %}
+            </div>
         </a>
         {% empty %}
-        <div style="padding: 30px; text-align: center; color: #888;">문서가 없습니다.</div>
+        <div class="empty-state">
+            해당하는 문서가 없습니다.
+        </div>
         {% endfor %}
     </div>
 </div>

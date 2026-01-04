@@ -56,7 +56,7 @@
     .sent .bubble { 
         background-color: #3b82f6; 
         color: white; 
-        border-bottom-right-radius: 4px; /* 말꼬리 효과 */
+        border-bottom-right-radius: 4px; 
     }
     
     /* 받은 메시지 (흰색) */
@@ -64,10 +64,33 @@
         background-color: white; 
         color: #334155; 
         border: 1px solid #e2e8f0; 
-        border-bottom-left-radius: 4px; /* 말꼬리 효과 */
+        border-bottom-left-radius: 4px; 
     }
 
-    /* 3. 하단 입력 및 액션 영역 (핵심 수정 부분) */
+    /* 3. 로딩 애니메이션 (타이핑 인디케이터) 추가 */
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 0;
+        height: 24px;
+    }
+    .typing-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #94a3b8;
+        border-radius: 50%;
+        animation: bounce 1.4s infinite ease-in-out both;
+    }
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes bounce {
+        0%, 80%, 100% { transform: scale(0); }
+        40% { transform: scale(1); }
+    }
+
+    /* 4. 하단 입력 및 액션 영역 */
     .chat-footer {
         background-color: white;
         border-top: 1px solid #e2e8f0;
@@ -78,12 +101,12 @@
         box-shadow: 0 -4px 20px rgba(0,0,0,0.02);
     }
 
-    /* 빠른 실행 버튼 바 (Toolbar) */
+    /* 빠른 실행 버튼 바 */
     .action-toolbar {
         display: flex;
         gap: 10px;
         overflow-x: auto;
-        padding-bottom: 5px; /* 스크롤바 공간 */
+        padding-bottom: 5px; 
     }
     
     .action-btn {
@@ -181,7 +204,23 @@
 
         {% for msg in messages %}
         <div class="message-row {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
-            <div class="bubble">{{ msg.content|linebreaksbr }}</div>
+            <div class="bubble">
+                {% if msg.content == '[PROCESSING]' %}
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                    <script>
+                        // 2초마다 새로고침하여 결과 확인
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    </script>
+                {% else %}
+                    {{ msg.content|linebreaksbr }}
+                {% endif %}
+            </div>
         </div>
         {% endfor %}
     </div>

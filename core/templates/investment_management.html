@@ -1,103 +1,234 @@
 {% extends "base.html" %}
+{% load humanize %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    <h2 class="mb-4">📈 투자 관리 및 포트폴리오</h2>
+<style>
+    /* 1. 레이아웃 기본 */
+    .dashboard-container {
+        padding: 30px;
+        background-color: #f1f5f9;
+        min-height: 100vh;
+    }
+    
+    /* 2. 상단 재무 현황판 (Financial Summary) */
+    .summary-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr); /* 5개 등분 */
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    
+    .stat-label { font-size: 13px; color: #64748b; font-weight: 600; margin-bottom: 5px; }
+    .stat-value { font-size: 20px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; }
+    .stat-sub { font-size: 11px; margin-top: 5px; }
 
-    <div class="row">
-        <div class="col-md-5">
-            <div class="card shadow-sm mb-4 border-primary">
-                <div class="card-header bg-primary text-white fw-bold">CEO 투자 지시 (매수/수정)</div>
-                <div class="card-body">
+    /* 3. 메인 섹션 (좌우 배치) */
+    .modern-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
+        height: 100%; /* 높이 맞춤 */
+        overflow: hidden;
+    }
+
+    .card-header-modern {
+        padding: 20px 25px;
+        border-bottom: 1px solid #f1f5f9;
+        font-weight: 700;
+        font-size: 16px;
+        color: #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: white;
+    }
+
+    /* 주문 폼 스타일 */
+    .order-form-container { padding: 25px; }
+    .input-label { font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 6px; display: block; }
+    .input-field {
+        width: 100%; padding: 12px; border: 1px solid #cbd5e1;
+        border-radius: 8px; font-size: 15px; background-color: #f8fafc;
+        transition: 0.2s;
+    }
+    .input-field:focus {
+        border-color: #3b82f6; background: white; outline: none;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    .btn-order {
+        width: 100%; padding: 14px; background-color: #1e293b; color: white;
+        border: none; border-radius: 8px; font-weight: 700; cursor: pointer;
+        margin-top: 10px; transition: 0.2s;
+    }
+    .btn-order:hover { background-color: #0f172a; transform: translateY(-2px); }
+
+    /* 대기 리스트 스타일 */
+    .draft-list-container {
+        max-height: 400px; /* 스크롤 영역 제한 */
+        overflow-y: auto;
+    }
+    .draft-item {
+        padding: 15px 25px;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .draft-item:hover { background-color: #f8fafc; }
+    .btn-approve-sm {
+        padding: 6px 12px; background-color: #ecfdf5; color: #059669;
+        border: 1px solid #a7f3d0; border-radius: 6px; font-size: 12px; font-weight: 700;
+        cursor: pointer;
+    }
+
+    /* 포트폴리오 테이블 */
+    .modern-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .modern-table th { background: #f8fafc; padding: 15px 20px; text-align: left; color: #64748b; font-weight: 600; border-bottom: 1px solid #e2e8f0; }
+    .modern-table td { padding: 15px 20px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    .stock-badge { background: #eff6ff; color: #2563eb; padding: 4px 8px; border-radius: 4px; font-weight: 700; font-size: 12px; }
+</style>
+
+<div class="dashboard-container">
+    
+    <div class="d-flex align-items-center mb-4 gap-2">
+        <h2 class="fw-bold text-dark m-0">⚡ 투자 자산 운용</h2>
+        <span class="badge bg-primary rounded-pill">{{ summary.count }} 종목 보유 중</span>
+    </div>
+
+    <div class="summary-row">
+        <div class="stat-card">
+            <div class="stat-label">💰 총 투자 원금</div>
+            <div class="stat-value">{{ summary.principal|intcomma }}원</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">📥 총 매수금액</div>
+            <div class="stat-value text-primary">{{ summary.total_buy|intcomma }}원</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">📤 총 매도금액</div>
+            <div class="stat-value text-secondary">{{ summary.total_sell|intcomma }}원</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">📊 현재 평가잔액</div>
+            <div class="stat-value">{{ summary.eval_balance|intcomma }}원</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">📈 총 수익률</div>
+            <div class="stat-value {{ summary.yield_color }}">{{ summary.yield }}%</div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        
+        <div class="col-lg-7">
+            <div class="modern-card">
+                <div class="card-header-modern">
+                    <span>🚀 CEO 직접 주문 지시</span>
+                    <span style="font-size:12px; color:#ef4444;">● Live Trading</span>
+                </div>
+                <div class="order-form-container">
                     <form method="post">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="create_draft">
+                        
                         <div class="mb-3">
-                            <label class="form-label">종목코드</label>
-                            <input type="text" name="stock_code" class="form-control" placeholder="예: 005930" required>
+                            <label class="input-label">종목코드 / 종목명</label>
+                            <input type="text" name="stock_code" class="input-field" placeholder="예: 005930" required autocomplete="off">
                         </div>
+                        
                         <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">총 매수금액 (원)</label>
-                                <input type="number" name="total_amount" class="form-control" required>
+                            <div class="col-6">
+                                <label class="input-label">매수 금액 (원)</label>
+                                <input type="number" name="total_amount" class="input-field" placeholder="0" required>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">수량 (주)</label>
-                                <input type="number" name="quantity" class="form-control" required>
+                            <div class="col-6">
+                                <label class="input-label">수량 (주)</label>
+                                <input type="number" name="quantity" class="input-field" placeholder="0" required>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-dark w-100">직원에게 기안 지시</button>
+                        
+                        <button type="submit" class="btn-order">주문 기안 즉시 발송</button>
                     </form>
                 </div>
             </div>
+        </div>
 
-            <div class="card shadow-sm">
-                <div class="card-header bg-warning fw-bold">📑 결재 대기 중인 기안문</div>
-                <div class="card-body p-0">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>부서</th>
-                                <th>종목</th>
-                                <th>평단가(계산됨)</th>
-                                <th>결재</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for draft in drafts %}
-                            <tr>
-                                <td>{{ draft.org.name }}</td>
-                                <td>{{ draft.stock_code }}</td>
-                                <td class="text-primary fw-bold">{{ draft.avg_price|floatformat:0 }}원</td>
-                                <td>
-                                    <form method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="approve">
-                                        <input type="hidden" name="log_id" value="{{ draft.id }}">
-                                        <button class="btn btn-success btn-sm">승인</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="4" class="text-center py-3 text-muted">대기 중인 문서가 없습니다.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        <div class="col-lg-5">
+            <div class="modern-card">
+                <div class="card-header-modern">
+                    <span>⏳ 승인 대기 ({{ drafts|length }})</span>
+                </div>
+                <div class="draft-list-container">
+                    {% for draft in drafts %}
+                    <div class="draft-item">
+                        <div>
+                            <div style="font-weight:700; color:#1e293b;">{{ draft.stock_code }}</div>
+                            <div style="font-size:12px; color:#64748b;">{{ draft.avg_price|intcomma }}원 / {{ draft.org.name }}</div>
+                        </div>
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="approve">
+                            <input type="hidden" name="log_id" value="{{ draft.id }}">
+                            <button class="btn-approve-sm">승인</button>
+                        </form>
+                    </div>
+                    {% empty %}
+                    <div style="padding: 40px; text-align: center; color:#94a3b8; font-size:13px;">
+                        대기 중인 결재가 없습니다.
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
 
-        <div class="col-md-7">
-            <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white fw-bold">📊 투자일지 포트폴리오 현황</div>
-                <div class="card-body p-0">
-                    <table class="table table-bordered mb-0">
-                        <thead class="table-secondary text-center">
-                            <tr>
-                                <th>종목명/코드</th>
-                                <th>보유수량</th>
-                                <th>평균단가</th>
-                                <th>투자금액</th>
-                                <th>승인일자</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in portfolio %}
-                            <tr class="text-center">
-                                <td>{{ item.stock_code }}</td>
-                                <td>{{ item.quantity }}</td>
-                                <td>{{ item.avg_price|floatformat:0 }}</td>
-                                <td class="text-end">{{ item.total_amount }}원</td>
-                                <td class="small">{{ item.approved_at|date:"Y-m-d H:i" }}</td>
-                            </tr>
-                            {% empty %}
-                            <tr><td colspan="5" class="text-center py-5 text-muted">승인된 투자 내역이 없습니다.</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    </div>
+
+    <div class="modern-card">
+        <div class="card-header-modern">
+            <span>📋 포트폴리오 보유 현황</span>
+            <button class="btn btn-sm btn-outline-secondary" style="font-size:12px;">Excel 다운로드</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th width="30%">종목정보</th>
+                        <th width="15%" class="text-end">보유수량</th>
+                        <th width="20%" class="text-end">평균단가</th>
+                        <th width="20%" class="text-end">총 매수금액</th>
+                        <th width="15%" class="text-end">승인일자</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in portfolio %}
+                    <tr>
+                        <td><span class="stock-badge">{{ item.stock_code }}</span></td>
+                        <td class="text-end fw-bold">{{ item.quantity|intcomma }}주</td>
+                        <td class="text-end">{{ item.avg_price|floatformat:0|intcomma }}원</td>
+                        <td class="text-end fw-bold text-dark">{{ item.total_amount|intcomma }}원</td>
+                        <td class="text-end text-secondary small">{{ item.approved_at|date:"y.m.d" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 60px; color: #94a3b8;">
+                            보유 중인 자산이 없습니다.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+
 </div>
 {% endblock %}
