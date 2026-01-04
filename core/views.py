@@ -1,3 +1,4 @@
+import datetime
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from .models import Agent, Message, Organization, Approval
@@ -8,39 +9,54 @@ from .tasks import create_approval_draft
 def index(request):
     return render(request, 'index.html')
 
-# 2. 메신저 (AI 직원 정보 전달 로직 강화)
+# 2. 메신저 (시간대별 가변 인사말 로직 추가)
 @login_required
 def messenger(request, agent_id=None):
     user = request.user
     if not user.organization:
         return render(request, 'error.html', {'message': "소속된 회사가 없습니다."})
         
-    # 사용자의 조직에 속한 AI 직원들만 가져옴 (사이드바용)
     agents = Agent.objects.filter(organization=user.organization)
     active_agent = None
     messages = []
+    initial_greeting = "" # 첫 인사말 변수 초기화
 
     if agent_id:
-        # 선택된 AI 직원의 상세 정보를 가져옴
         active_agent = get_object_or_404(Agent, id=agent_id, organization=user.organization)
         messages = Message.objects.filter(user=user, agent=active_agent).order_by('created_at')
 
+        # --- [신규] 시간대별 인사말 생성 로직 ---
+        now = datetime.datetime.now()
+        hour = now.hour
+
+        # 시간대 구분
+        if 5 <= hour < 11:
+            time_text = "좋은 아침입니다, 사장님."
+        elif 11 <= hour < 14:
+            time_text = "점심 맛있게 드셨습니까, 사장님."
+        else:
+            time_text = "좋은 저녁입니다, 사장님."
+
+        # "부서명 이름 직급" 조합 (예: 배당금융실 드웨인 실장)
+        initial_greeting = f"{time_text} {active_agent.department} {active_agent.name} {active_agent.position}입니다. 무엇을 도와드릴까요?"
+        # ---------------------------------------
+
         if request.method == 'POST':
-            # 템플릿의 input name을 'message'로 가정합니다.
             user_input = request.POST.get('message')
             if user_input:
                 # 1. 사용자의 메시지 저장
                 Message.objects.create(agent=active_agent, user=user, role='user', content=user_input)
                 
-                # 2. Celery 비동기 작업 호출 (AI 답변 및 기안문 작성)
+                # 2. Celery 비동기 작업 호출
                 create_approval_draft.delay(user_input, active_agent.id, user.id, user.organization.id)
                 
                 return redirect('messenger', agent_id=agent_id)
 
     return render(request, 'messenger.html', {
         'agents': agents, 
-        'active_agent': active_agent, # 템플릿에서 {{ active_agent }}로 사용
-        'messages': messages
+        'active_agent': active_agent,
+        'messages': messages,
+        'initial_greeting': initial_greeting # 템플릿으로 인사말 전달
     })
 
 # 3. 직접 기안 작성
