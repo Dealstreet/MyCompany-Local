@@ -1,0 +1,62 @@
+{% load humanize %}
+<div class="card-header-modern">
+    <span>📜 운용 로그 (Operational Logs)</span>
+    <span style="font-size:12px; color:#64748b;">매수/매도 이력</span>
+</div>
+<div style="overflow-x:auto;">
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th width="15%">일시</th>
+                <th width="15%">구분</th>
+                <th width="25%">종목명</th>
+                <th width="15%" class="text-end">수량</th>
+                <th width="15%" class="text-end">평균단가</th>
+                <th width="15%" class="text-end">거래금액</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in investment_logs %}
+            <tr>
+                <td class="text-secondary small">{{ log.approved_at|date:"y.m.d H:i" }}</td>
+                <td>
+                    {% if log.quantity > 0 %}
+                    <span class="badge bg-danger bg-opacity-10 text-danger small">매수</span>
+                    {% else %}
+                    <span class="badge bg-primary bg-opacity-10 text-primary small">매도</span>
+                    {% endif %}
+                </td>
+                <td class="fw-bold">{{ log.stock_name|default:log.stock_code }}</td>
+                <td class="text-end fw-bold">{{ log.quantity|stringformat:"+d"|intcomma }}주</td> <!-- 부호 표시 -->
+                <td class="text-end">{{ log.avg_price|floatformat:0|intcomma }}원</td>
+                <td class="text-end text-dark">{{ log.total_amount|intcomma }}원</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">
+                    운용 기록이 없습니다.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 페이지네이션 컨트롤 -->
+    {% if investment_logs.has_other_pages %}
+    <div class="d-flex justify-content-center p-3 gap-2">
+        {% if investment_logs.has_previous %}
+        <button class="btn btn-sm btn-outline-secondary btn-page"
+            data-page="{{ investment_logs.previous_page_number }}">&lt;</button>
+        {% endif %}
+
+        <span class="d-flex align-items-center text-muted small px-2">
+            Page {{ investment_logs.number }} of {{ investment_logs.paginator.num_pages }}
+        </span>
+
+        {% if investment_logs.has_next %}
+        <button class="btn btn-sm btn-outline-secondary btn-page"
+            data-page="{{ investment_logs.next_page_number }}">&gt;</button>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>

@@ -43,7 +43,7 @@ class Agent(models.Model):
     department = models.CharField(max_length=50, default='국제금융실', verbose_name="소속 부서")
     position = models.CharField(max_length=50, default='실장', verbose_name="직급")
     role = models.CharField(max_length=100, verbose_name="담당 업무")
-    ticker = models.CharField(max_length=20, blank=True, null=True, verbose_name="관리 종목코드")
+    stock = models.ForeignKey('Stock', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="관리 종목")
     persona = models.TextField(verbose_name="프롬프트(페르소나)")
     model_name = models.CharField(max_length=50, default='gpt-4o', verbose_name="사용 모델")
     profile_image = models.ImageField(upload_to='agents/', null=True, blank=True, verbose_name="프로필 이미지")
@@ -59,7 +59,8 @@ class InvestmentLog(models.Model):
     ]
 
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE, verbose_name="담당 AI 직원")
-    stock_code = models.CharField(max_length=20, verbose_name="종목코드")
+    stock_name = models.CharField(max_length=50, verbose_name="종목명", null=True, blank=True) # [추가] 종목명
+    stock_code = models.CharField(max_length=20, verbose_name="종목코드", null=True, blank=True) # [수정] 코드는 없을 수도 있음
     total_amount = models.DecimalField(max_digits=15, decimal_places=0, verbose_name="거래금액")
     quantity = models.IntegerField(verbose_name="수량") # 매수(+), 매도(-)
     
@@ -101,6 +102,7 @@ class Approval(models.Model):
     
     # 보고 유형 및 가변 정보 저장용 임시 필드
     report_type = models.CharField(max_length=10, choices=REPORT_TYPES, default='gen', verbose_name="보고 유형")
+    temp_stock_name = models.CharField(max_length=50, null=True, blank=True, verbose_name="임시 종목명") # [추가]
     temp_stock_code = models.CharField(max_length=20, null=True, blank=True, verbose_name="임시 종목코드")
     temp_total_amount = models.DecimalField(max_digits=15, decimal_places=0, null=True, blank=True, verbose_name="임시 거래금액")
     temp_quantity = models.IntegerField(null=True, blank=True, verbose_name="임시 수량")
@@ -164,3 +166,16 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
+# 9. 종목 정보 (Stock)
+class Stock(models.Model):
+    name = models.CharField(max_length=100, verbose_name="종목명")
+    code = models.CharField(max_length=20, unique=True, verbose_name="종목코드")
+    current_price = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="현재가")
+    high_52w = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="52주 고가")
+    low_52w = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="52주 저가")
+    candle_data = models.JSONField(default=list, verbose_name="캔들 데이터(종가)")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="최근 업데이트")
+
+    def __str__(self):
+        return f"{self.name} ({self.code})"

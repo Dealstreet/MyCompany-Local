@@ -7,6 +7,7 @@ from operator import attrgetter
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
+from django.core.paginator import Paginator
 from .models import Agent, Message, Organization, Approval, InvestmentLog, User
 from .tasks import create_approval_draft
 
@@ -88,12 +89,28 @@ def investment_management(request):
     user = request.user
     agents = get_sidebar_agents(user)
     
-    # 1. 포트폴리오 (현재 보유 중인 종목)
-    portfolio = InvestmentLog.objects.filter(
+    # 1. 포트폴리오 (현재 보유 중인 종목) - 페이지네이션 적용 (5개)
+    portfolio_qs = InvestmentLog.objects.filter(
         agent__organization=user.organization, 
         status='approved'
     ).order_by('-approved_at')
     
+    pf_paginator = Paginator(portfolio_qs, 5)
+    pf_page_number = request.GET.get('pf_page')
+    portfolio = pf_paginator.get_page(pf_page_number)
+    
+    # [추가] 재무 현황 요약 데이터 계산 (전체 데이터 기준)
+    # 페이지네이션 된 portfolio 객체가 아닌 전체 쿼리셋을 사용해야 정확한 총액 계산 가능
+    summary_portfolio = InvestmentLog.objects.filter(
+        agent__organization=user.organization, 
+        status='approved'
+    )
+    
+    total_buy_amount = 0
+    total_count = summary_portfolio.count()
+    for item in summary_portfolio:
+        total_buy_amount += item.total_amount
+
     # 2. 결재 대기 목록
     drafts = Approval.objects.filter(
         organization=user.organization,
@@ -101,13 +118,30 @@ def investment_management(request):
         status='pending'
     ).order_by('-created_at')
 
-    # 3. [추가] 재무 현황 요약 데이터 계산
-    # (실제 주가 데이터가 연동되면 current_price를 반영해야 하지만, 지금은 매수가 기준으로 계산)
-    total_buy_amount = 0
-    total_count = portfolio.count()
+    # 3. [추가] 운용 로그 (페이지네이션 적용)
+    # status가 approved인 것만 가져옴
+    log_list = InvestmentLog.objects.filter(
+        agent__organization=user.organization,
+        status='approved'
+    ).order_by('-approved_at')
     
-    for item in portfolio:
-        total_buy_amount += item.total_amount
+    paginator = Paginator(log_list, 5) # 페이지당 5개 표시
+    page_number = request.GET.get('page')
+    investment_logs = paginator.get_page(page_number)
+
+    # AJAX 요청 처리 (섹션별 페이지네이션)
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        section = request.GET.get('section')
+        if section == 'portfolio':
+             return render(request, 'partials/portfolio_section.html', {'portfolio': portfolio})
+        else:
+             return render(request, 'partials/log_section.html', {'investment_logs': investment_logs})
+
+    # 4. 재무 현황 요약 데이터 계산
+    # (실제 주가 데이터가 연동되면 current_price를 반영해야 하지만, 지금은 매수가 기준으로 계산)
+    # 위에서 이미 계산함 (summary_portfolio 사용)
+    
+    # 가상의 수익률 시뮬레이션 (추후 주가 API 연동 시 교체)
 
     # 가상의 수익률 시뮬레이션 (추후 주가 API 연동 시 교체)
     # 현재는 원금 = 평가액으로 설정 (수익률 0%)
@@ -125,7 +159,8 @@ def investment_management(request):
         'agents': agents,
         'portfolio': portfolio,
         'drafts': drafts,
-        'summary': summary  # [추가] 요약 데이터 전달
+        'investment_logs': investment_logs, # [추가] 로그 전달
+        'summary': summary
     })
 
 # 4. 전자결재함
@@ -173,6 +208,7 @@ def approval_detail(request, pk):
                 qty = int(approval.temp_quantity) if approval.report_type == 'buy' else -int(approval.temp_quantity)
                 new_log = InvestmentLog.objects.create(
                     agent=approval.agent,
+                    stock_name=approval.temp_stock_name, # [추가] 종목명 저장
                     stock_code=approval.temp_stock_code,
                     total_amount=approval.temp_total_amount,
                     quantity=qty,

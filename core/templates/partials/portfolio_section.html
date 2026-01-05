@@ -1,0 +1,54 @@
+{% load humanize %}
+<div class="card-header-modern">
+    <span>📋 포트폴리오 보유 현황</span>
+    <button class="btn btn-sm btn-outline-secondary" style="font-size:12px;">Excel 다운로드</button>
+</div>
+<div style="overflow-x:auto;">
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th width="30%">종목명</th>
+                <th width="15%" class="text-end">보유수량</th>
+                <th width="20%" class="text-end">평균단가</th>
+                <th width="20%" class="text-end">총 매수금액</th>
+                <th width="15%" class="text-end">승인일자</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in portfolio %}
+            <tr>
+                <td><span class="stock-badge">{{ item.stock_name|default:item.stock_code }}</span></td>
+                <td class="text-end fw-bold">{{ item.quantity|intcomma }}주</td>
+                <td class="text-end">{{ item.avg_price|floatformat:0|intcomma }}원</td>
+                <td class="text-end fw-bold text-dark">{{ item.total_amount|intcomma }}원</td>
+                <td class="text-end text-secondary small">{{ item.approved_at|date:"y.m.d" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 60px; color: #94a3b8;">
+                    보유 중인 자산이 없습니다.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- 포트폴리오 페이지네이션 컨트롤 -->
+    {% if portfolio.has_other_pages %}
+    <div class="d-flex justify-content-center p-3 gap-2">
+        {% if portfolio.has_previous %}
+        <button class="btn btn-sm btn-outline-secondary btn-pf-page"
+            data-page="{{ portfolio.previous_page_number }}">&lt;</button>
+        {% endif %}
+
+        <span class="d-flex align-items-center text-muted small px-2">
+            Page {{ portfolio.number }} of {{ portfolio.paginator.num_pages }}
+        </span>
+
+        {% if portfolio.has_next %}
+        <button class="btn btn-sm btn-outline-secondary btn-pf-page"
+            data-page="{{ portfolio.next_page_number }}">&gt;</button>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
