@@ -11,6 +11,19 @@ class Organization(models.Model):
     def __str__(self):
         return self.name
 
+# 1-1. 부서 (Department) - 조직도 관리를 위한 모델
+class Department(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, verbose_name="소속 회사")
+    name = models.CharField(max_length=50, verbose_name="부서명")
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='sub_departments', verbose_name="상위 부서")
+    
+    class Meta:
+        ordering = ['id']
+
+    def __str__(self):
+        return self.name
+
+
 # 2. 사람 (User) - 사번 및 직급 필드 포함 커스텀 유저
 class User(AbstractUser):
     ROLE_CHOICES = [('ceo', '사장'), ('staff', '직원')]
@@ -40,7 +53,7 @@ class Agent(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='agents', verbose_name="소속 회사")
     
     name = models.CharField(max_length=50, verbose_name="이름")
-    department = models.CharField(max_length=50, default='국제금융실', verbose_name="소속 부서")
+    department_obj = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='agents', verbose_name="소속 부서 (연동)")
     position = models.CharField(max_length=50, default='실장', verbose_name="직급")
     role = models.CharField(max_length=100, verbose_name="담당 업무")
     stock = models.ForeignKey('Stock', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="관리 종목")
@@ -49,7 +62,8 @@ class Agent(models.Model):
     profile_image = models.ImageField(upload_to='agents/', null=True, blank=True, verbose_name="프로필 이미지")
 
     def __str__(self):
-        return f"{self.department} {self.name} {self.position} ({self.role})"
+        dept = self.department_obj.name if self.department_obj else "소속미정"
+        return f"{dept} {self.name} {self.position} ({self.role})"
 
 # 4. 투자 로그 (InvestmentLog) - 최종 승인 시 생성되는 실제 자산 기록
 class InvestmentLog(models.Model):
@@ -58,27 +72,33 @@ class InvestmentLog(models.Model):
         ('rejected', '반려'),
     ]
 
-    agent = models.ForeignKey(Agent, on_delete=models.CASCADE, verbose_name="담당 AI 직원")
-    stock_name = models.CharField(max_length=50, verbose_name="종목명", null=True, blank=True) # [추가] 종목명
-    stock_code = models.CharField(max_length=20, verbose_name="종목코드", null=True, blank=True) # [수정] 코드는 없을 수도 있음
+    agent = models.ForeignKey(Agent, on_delete=models.CASCADE, null=True, blank=True, verbose_name="담당 AI 직원")
+    
+    # [신규] 출처 및 사용자
+    SOURCE_CHOICES = [('ai', '🤖 AI기안'), ('real', '📱 실거래')]
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='ai', verbose_name="출처")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="사용자", null=True, blank=True)
+    order_no = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="주문번호") # 중복방지
+
+    stock_name = models.CharField(max_length=50, verbose_name="종목명", null=True, blank=True)
+    stock_code = models.CharField(max_length=20, verbose_name="종목코드", null=True, blank=True)
     total_amount = models.DecimalField(max_digits=15, decimal_places=0, verbose_name="거래금액")
-    quantity = models.IntegerField(verbose_name="수량") # 매수(+), 매도(-)
+    quantity = models.IntegerField(verbose_name="수량")
     
-    # 평균단가 자동 계산
     avg_price = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="평균단가", null=True, blank=True)
-    
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='approved')
+    
     created_at = models.DateTimeField(auto_now_add=True)
     approved_at = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        # 평균단가 = |거래금액 / 수량|
+        # 평균단가 자동 계산
         if self.total_amount and self.quantity and self.quantity != 0:
             self.avg_price = abs(self.total_amount / self.quantity)
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.stock_code} - {self.quantity}주 ({self.status})"
+        return f"[{self.get_source_display()}] {self.stock_name} ({self.quantity}주)"
 
 # 5. 전자결재 문서 (Approval) - 기안 및 임시 데이터 보관
 class Approval(models.Model):
@@ -179,3 +199,18 @@ class Stock(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
+import secrets
+
+# 10. 사용자 프로필 (API Key 저장소)
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    secret_key = models.CharField(max_length=100, unique=True, blank=True, verbose_name="연동 API Key")
+
+    def save(self, *args, **kwargs):
+        if not self.secret_key:
+            self.secret_key = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user.username}의 프로필"

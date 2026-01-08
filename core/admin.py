@@ -1,6 +1,15 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Organization, Agent, Task, Approval, ApprovalLine, Message, Stock
+from .models import User, Organization, Agent, Task, Approval, ApprovalLine, Message, Stock, UserProfile, InvestmentLog, Department
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'secret_key')
+
+@admin.register(InvestmentLog)
+class InvestmentLogAdmin(admin.ModelAdmin):
+    list_display = ('source', 'stock_name', 'quantity', 'status', 'approved_at', 'agent', 'user')
+    list_filter = ('source', 'status', 'agent', 'user')
 
 # 1. 사용자 관리 (기존 설정 유지)
 class CustomUserAdmin(UserAdmin):
@@ -23,23 +32,23 @@ class ApprovalAdmin(admin.ModelAdmin):
     inlines = [ApprovalLineInline]
 
 # 4. AI 직원(Agent) 관리 - [수정] profile_image 필드 추가
+@admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
     # 목록에서 보여줄 항목: 사진 필드(profile_image)를 추가했습니다.
-    # 목록에서 보여줄 항목: 사진 필드(profile_image)를 추가했습니다.
-    list_display = ('name', 'department', 'position', 'role', 'stock', 'model_name', 'organization', 'profile_image')
+    list_display = ('name', 'department_obj', 'position', 'role', 'stock', 'model_name')
     
     # 우측 필터 사이드바
-    list_filter = ('organization', 'department', 'position', 'model_name')
+    list_filter = ('organization', 'department_obj', 'position', 'model_name')
     
     # 검색 기능
-    search_fields = ('name', 'department', 'role')
+    search_fields = ('name', 'department_obj__name', 'role')
 
     # 자동 완성 필드 (ForeignKey 검색용)
     autocomplete_fields = ['stock']
     
     # 상세 페이지 설정: '기본 정보' 섹션에 'profile_image'를 추가하여 사진 업로드가 가능하게 했습니다.
     fieldsets = (
-        ('기본 정보', {'fields': ('organization', 'name', 'department', 'position', 'profile_image')}),
+        ('기본 정보', {'fields': ('organization', 'name', 'department_obj', 'position', 'profile_image')}),
         ('담당 업무 및 분석 대상', {'fields': ('role', 'stock')}),
         ('AI 엔진 설정', {'fields': ('model_name', 'persona')}),
     )
@@ -58,7 +67,7 @@ class MessageAdmin(admin.ModelAdmin):
 # 모델 등록 실행
 admin.site.register(User, CustomUserAdmin)
 admin.site.register(Organization)
-admin.site.register(Agent, AgentAdmin)
+
 admin.site.register(Approval, ApprovalAdmin)
 
 @admin.register(Stock)
@@ -103,5 +112,10 @@ class StockAdmin(admin.ModelAdmin):
         self.message_user(
             request, 
             f"{success_count}개 종목 업데이트 성공, {fail_count}개 실패.", 
-            level='INFO' if fail_count == 0 else 'WARNING'
         )
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name', 'parent', 'organization')
+    list_filter = ('organization', 'parent')
+

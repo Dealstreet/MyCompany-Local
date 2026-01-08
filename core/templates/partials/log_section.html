@@ -7,9 +7,10 @@
     <table class="modern-table">
         <thead>
             <tr>
+                <th width="10%">출처</th>
                 <th width="15%">일시</th>
-                <th width="15%">구분</th>
-                <th width="25%">종목명</th>
+                <th width="10%">구분</th>
+                <th width="20%">종목명</th>
                 <th width="15%" class="text-end">수량</th>
                 <th width="15%" class="text-end">평균단가</th>
                 <th width="15%" class="text-end">거래금액</th>
@@ -18,6 +19,13 @@
         <tbody>
             {% for log in investment_logs %}
             <tr>
+                <td>
+                    {% if log.source == 'ai' %}
+                    <span class="badge bg-primary">🤖 AI</span>
+                    {% else %}
+                    <span class="badge bg-success">📱 문자</span>
+                    {% endif %}
+                </td>
                 <td class="text-secondary small">{{ log.approved_at|date:"y.m.d H:i" }}</td>
                 <td>
                     {% if log.quantity > 0 %}

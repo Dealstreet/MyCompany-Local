@@ -8,7 +8,15 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from django.core.paginator import Paginator
-from .models import Agent, Message, Organization, Approval, InvestmentLog, User
+from django.db.models import Q
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.http import JsonResponse
+from django.utils.dateparse import parse_datetime
+
+from .models import Agent, Message, Organization, Approval, InvestmentLog, User, UserProfile, Department
+from .utils import parse_mirae_sms
 from .tasks import create_approval_draft
 
 # [공통] 사이드바용 직원 목록 호출 함수
@@ -23,6 +31,82 @@ def index(request):
     agents = get_sidebar_agents(request.user)
     return render(request, 'index.html', {'agents': agents})
 
+@login_required
+def org_chart(request):
+    user = request.user
+    agents = get_sidebar_agents(user)
+    
+    chart_data = []
+    
+    # 1. CEO (최상위)
+    ceo = User.objects.filter(organization=user.organization, role='ceo').first()
+    ceo_name = ceo.username if ceo else "CEO"
+    ceo_id = "ceo_node"
+    
+    ceo_html = f"""
+        <div class="node-card ceo-card">
+            <div class="profile-icon">👑</div>
+            <div class="node-name">{ceo_name}</div>
+            <div class="node-role">CEO</div>
+        </div>
+    """
+    chart_data.append([{'v': ceo_id, 'f': ceo_html}, '', 'CEO'])
+
+    # 2. 부서 (Department) 가져오기
+    departments = Department.objects.filter(organization=user.organization).order_by('id')
+    
+    # 부서 노드 생성 및 부서ID 매핑 (이름 -> ID)
+    dept_id_map = {} # 부서명 -> 부서노드ID
+
+    for dept in departments:
+        node_id = f"dept_{dept.id}"
+        dept_id_map[dept.name] = node_id
+        
+        # 상위 부서 연결
+        if dept.parent:
+            parent_id = f"dept_{dept.parent.id}"
+        else:
+            parent_id = ceo_id # 상위가 없으면 CEO 직속 (즉, 본부)
+
+        # 스타일: 상위 부서가 없으면(본부) 배경색 다르게
+        bg_style = 'background:#001f3f; font-weight:800; color:#ffffff;' if not dept.parent else ''
+        
+        dept_html = f"""
+            <div class="node-card dept-card" style="{bg_style}">
+                <div class="node-name">{dept.name}</div>
+            </div>
+        """
+        chart_data.append([{'v': node_id, 'f': dept_html}, parent_id, dept.name])
+
+    # 3. 직원 (Agents) 배치
+    for agent in agents:
+        agent_id = f"agent_{agent.id}"
+        
+        # 부모 노드 결정: Agent.department_obj (FK)를 사용
+        if agent.department_obj:
+            parent_node = f"dept_{agent.department_obj.id}"
+        else:
+            # 연결된 부서가 없으면 CEO 직속 (혹은 예외 처리)
+            parent_node = ceo_id
+        
+        img_html = "🤖"
+        if agent.profile_image:
+            img_html = f"<img src='{agent.profile_image.url}' style='width:100%; height:100%; object-fit:cover;'>"
+        
+        agent_html = f"""
+            <a href='/messenger/{agent.id}/' class='node-card agent-card'>
+                <div class='img-circle'>{img_html}</div>
+                <div class='node-name'>{agent.name}</div>
+                <div class='node-role'>{agent.position}</div>
+            </a>
+        """
+        chart_data.append([{'v': agent_id, 'f': agent_html}, parent_node, agent.role])
+
+    return render(request, 'org_chart.html', {
+        'agents': agents, 
+        'chart_data': json.dumps(chart_data), 
+        'org': user.organization
+    })
 # 2. [수정됨] 메신저 (멈춘 메시지 강제 종료 기능 추가)
 @login_required
 def messenger(request, agent_id=None):
@@ -56,7 +140,8 @@ def messenger(request, agent_id=None):
         now = datetime.datetime.now()
         hour = now.hour
         time_text = "좋은 아침입니다" if 5 <= hour < 11 else "점심 맛있게 드셨습니까" if 11 <= hour < 14 else "좋은 저녁입니다"
-        initial_greeting = f"{time_text}, 사장님. {active_agent.department} {active_agent.name} {active_agent.position}입니다. 무엇을 도와드릴까요?"
+        dept_name = active_agent.department_obj.name if active_agent.department_obj else "소속미정"
+        initial_greeting = f"{time_text}, 사장님. {dept_name} {active_agent.name} {active_agent.position}입니다. 무엇을 도와드릴까요?"
 
         if request.method == 'POST':
             user_input = request.POST.get('message')
@@ -90,8 +175,9 @@ def investment_management(request):
     agents = get_sidebar_agents(user)
     
     # 1. 포트폴리오 (현재 보유 중인 종목) - 페이지네이션 적용 (5개)
+    # [수정] 내 회사 소속이거나(AI), 내가 직접 한(Real) 거래
     portfolio_qs = InvestmentLog.objects.filter(
-        agent__organization=user.organization, 
+        Q(agent__organization=user.organization) | Q(user__organization=user.organization), 
         status='approved'
     ).order_by('-approved_at')
     
@@ -102,7 +188,7 @@ def investment_management(request):
     # [추가] 재무 현황 요약 데이터 계산 (전체 데이터 기준)
     # 페이지네이션 된 portfolio 객체가 아닌 전체 쿼리셋을 사용해야 정확한 총액 계산 가능
     summary_portfolio = InvestmentLog.objects.filter(
-        agent__organization=user.organization, 
+        Q(agent__organization=user.organization) | Q(user__organization=user.organization), 
         status='approved'
     )
     
@@ -121,7 +207,7 @@ def investment_management(request):
     # 3. [추가] 운용 로그 (페이지네이션 적용)
     # status가 approved인 것만 가져옴
     log_list = InvestmentLog.objects.filter(
-        agent__organization=user.organization,
+        Q(agent__organization=user.organization) | Q(user__organization=user.organization),
         status='approved'
     ).order_by('-approved_at')
     
@@ -248,55 +334,55 @@ def create_self_approval(request):
     return render(request, 'create_approval.html', {'agents': agents})
 
 # 7. 조직도 (Google Charts용)
-@login_required
-def org_chart(request):
-    user = request.user
-    agents = get_sidebar_agents(user)
-    
-    chart_data = []
-    
-    # CEO
-    ceo = User.objects.filter(organization=user.organization, role='ceo').first()
-    ceo_name = ceo.username if ceo else "CEO"
-    ceo_id = "ceo_node"
-    
-    ceo_html = f"""
-        <div class="node-card ceo-card">
-            <div class="profile-icon">👑</div>
-            <div class="node-name">{ceo_name}</div>
-            <div class="node-role">CEO</div>
-        </div>
-    """
-    chart_data.append([{'v': ceo_id, 'f': ceo_html}, '', 'CEO'])
 
-    # 부서 및 직원
-    agents_sorted = agents.order_by('department')
-    for dept_name, members in groupby(agents_sorted, attrgetter('department')):
-        dept_id = f"dept_{dept_name}"
-        dept_html = f"""
-            <div class="node-card dept-card">
-                <div class="node-name">{dept_name}</div>
-            </div>
-        """
-        chart_data.append([{'v': dept_id, 'f': dept_html}, ceo_id, dept_name])
 
-        for agent in members:
-            agent_id = f"agent_{agent.id}"
-            img_html = "🤖"
-            if agent.profile_image:
-                img_html = f"<img src='{agent.profile_image.url}' style='width:100%; height:100%; object-fit:cover;'>"
+@method_decorator(csrf_exempt, name='dispatch')
+class SmsWebhookView(View):
+    def post(self, request):
+        try:
+            data = json.loads(request.body)
+            secret_key = data.get('secret_key')
             
-            agent_html = f"""
-                <a href='/messenger/{agent.id}/' class='node-card agent-card'>
-                    <div class='img-circle'>{img_html}</div>
-                    <div class='node-name'>{agent.name}</div>
-                    <div class='node-role'>{agent.position}</div>
-                </a>
-            """
-            chart_data.append([{'v': agent_id, 'f': agent_html}, dept_id, agent.role])
+            # 인증
+            try:
+                profile = UserProfile.objects.get(secret_key=secret_key)
+                user = profile.user
+            except UserProfile.DoesNotExist:
+                return JsonResponse({'status': 'fail', 'msg': 'Invalid Key'}, status=403)
 
-    return render(request, 'org_chart.html', {
-        'agents': agents, 
-        'chart_data': json.dumps(chart_data), 
-        'org': user.organization
-    })
+            # 파싱
+            parsed_data = parse_mirae_sms(data.get('sms_content'))
+            if not parsed_data:
+                return JsonResponse({'status': 'fail', 'msg': 'Parsing Failed'}, status=400)
+
+            # 시간 처리
+            if data.get('received_at'):
+                trade_date = parse_datetime(data.get('received_at'))
+            else:
+                trade_date = timezone.now()
+
+            # [핵심 변경] InvestmentLog에 저장 (통합)
+            # 주문번호(order_no)가 이미 있으면 저장하지 않음 (get_or_create)
+            obj, created = InvestmentLog.objects.get_or_create(
+                order_no=parsed_data['order_no'],
+                defaults={
+                    'user': user,          # 사용자 연결
+                    'agent': None,         # AI가 아님
+                    'source': 'real',      # <--- 출처: 실거래
+                    'status': 'approved',  # 이미 체결된 건이므로 승인 상태
+                    
+                    'stock_name': parsed_data.get('stock_name', 'Unknown'),
+                    'stock_code': parsed_data.get('stock_code', ''),
+                    'quantity': parsed_data.get('quantity', 0) if parsed_data.get('trade_type', '매수') == '매수' else -parsed_data.get('quantity', 0),
+                    'total_amount': parsed_data.get('price', 0) * parsed_data.get('quantity', 0), # 총액 계산
+                    'approved_at': trade_date # 체결 시간
+                }
+            )
+
+            if created:
+                return JsonResponse({'status': 'success', 'msg': 'Saved to InvestmentLog'})
+            else:
+                return JsonResponse({'status': 'exist', 'msg': 'Already exists'})
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'msg': str(e)}, status=500)

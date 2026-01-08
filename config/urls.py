@@ -4,6 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static 
 from django.contrib.auth import views as auth_views
 from core import views
+from core.views import SmsWebhookView
 
 urlpatterns = [
     # 관리자 페이지
@@ -32,6 +33,9 @@ urlpatterns = [
 
     # 5. 조직도
     path('org/', views.org_chart, name='org_chart'),
+
+    # [추가] 아이폰 문자 연동 웹훅 URL
+    path('api/webhook/sms/', SmsWebhookView.as_view(), name='sms_webhook'),
 ]
 
 # 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정

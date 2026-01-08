@@ -97,6 +97,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok-free.app',
     'http://127.0.0.1',
+    'http://sdf540.iptime.org',
 ]
 
 # Celery 설정 (Redis 연결)
