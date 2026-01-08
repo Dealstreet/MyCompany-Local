@@ -1,44 +1,162 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}꼼망컴퍼니 CIS{% endblock %}</title>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        * { box-sizing: border-box; font-family: 'Pretendard', sans-serif; }
-        body { margin: 0; display: flex; height: 100vh; background-color: #f0f2f5; overflow: hidden; }
-        a { text-decoration: none; color: inherit; }
-        
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Pretendard', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f0f2f5;
+            overflow: hidden;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
         /* 사이드바 스타일 */
-        .sidebar { width: 280px; background-color: #1e293b; color: white; display: flex; flex-direction: column; padding: 20px; flex-shrink: 0; }
-        .logo { font-size: 18px; font-weight: 700; margin-bottom: 30px; display: flex; align-items: center; gap: 10px; color: #fff; }
-        
+        .sidebar {
+            width: 280px;
+            background-color: #1e293b;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+        }
+
         /* 프로필 이미지 및 카드 스타일 */
-        .profile-card { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; color: white; transition: 0.2s; cursor: pointer; margin-bottom: 5px; }
-        .profile-card:hover, .profile-card.active { background-color: rgba(255,255,255,0.1); }
-        
-        .profile-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background-color: #475569; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .profile-img img { width: 100%; height: 100%; object-fit: cover; }
-        
-        .profile-name { font-size: 14px; font-weight: 600; line-height: 1.4; }
-        .profile-role { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+        .profile-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            color: white;
+            transition: 0.2s;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+
+        .profile-card:hover,
+        .profile-card.active {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .profile-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            background-color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .profile-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-name {
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        .profile-role {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
 
         /* 상단 본인 프로필 영역 전용 스타일 */
-        .my-profile { border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; margin-bottom: 20px; }
+        .my-profile {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
 
-        .main-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-        
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
         /* 상단 메뉴 버튼 스타일 */
-        .menu-btn { width: 100%; padding: 12px 15px; border-radius: 6px; font-size: 14px; font-weight: 600; color: white; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; border: none; cursor: pointer; }
-        .btn-orange { background: linear-gradient(135deg, #f2994a, #f2c94c); }
-        .btn-blue   { background: linear-gradient(135deg, #2980b9, #3498db); }
-        .btn-green  { background: linear-gradient(135deg, #27ae60, #2ecc71); } /* 투자 관리용 녹색 */
-        .btn-purple { background: linear-gradient(135deg, #8e44ad, #9b59b6); }
-        
-        .section-title { font-size: 12px; color: #64748b; margin-top: 15px; margin-bottom: 15px; font-weight: 600; }
+        .menu-btn {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-orange {
+            background: linear-gradient(135deg, #f2994a, #f2c94c);
+        }
+
+        .btn-blue {
+            background: linear-gradient(135deg, #2980b9, #3498db);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+        }
+
+        /* 투자 관리용 녹색 */
+        .btn-purple {
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+        }
+
+        .btn-red {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            margin-top: auto;
+        }
+
+        .section-title {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 15px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
     </style>
 </head>
+
 <body>
     <div class="sidebar">
         <a href="{% url 'index' %}" class="logo">🏢 꼼망컴퍼니 CIS</a>
@@ -57,19 +175,20 @@
 
         <a href="{% url 'create_self_approval' %}" class="menu-btn btn-orange">📝 직접 기안 작성</a>
         <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
-        
+
         <a href="{% url 'investment_management' %}" class="menu-btn btn-green">📈 투자 관리 (포트폴리오)</a>
-        
+
         <a href="{% url 'org_chart' %}" class="menu-btn btn-purple">📊 조직도 보기</a>
-        
+
         <div class="section-title">AI 직원 목록</div>
         {% for agent in agents %}
-        <a href="{% url 'messenger' agent.id %}" class="profile-card {% if active_agent.id == agent.id %}active{% endif %}">
+        <a href="{% url 'messenger' agent.id %}"
+            class="profile-card {% if active_agent.id == agent.id %}active{% endif %}">
             <div class="profile-img">
                 {% if agent.profile_image %}
-                    <img src="{{ agent.profile_image.url }}" alt="{{ agent.name }}">
+                <img src="{{ agent.profile_image.url }}" alt="{{ agent.name }}">
                 {% else %}
-                    <span style="font-size: 18px;">👤</span>
+                <span style="font-size: 18px;">👤</span>
                 {% endif %}
             </div>
             <div>
@@ -78,10 +197,13 @@
             </div>
         </a>
         {% endfor %}
+
+        <a href="{% url 'logout' %}" class="menu-btn btn-red">🚪 로그아웃</a>
     </div>
 
     <div class="main-wrapper">
         {% block content %}{% endblock %}
     </div>
 </body>
+
 </html>
