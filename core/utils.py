@@ -1,100 +1,91 @@
-import FinanceDataReader as fdr
-from datetime import datetime
-from django.utils import timezone
-from .models import Stock
-
-def update_stock(stock):
-    try:
-        # 0. Sanitize code (Remove KRX: prefix if exists)
-        code = stock.code.replace('KRX:', '')
-        
-        # 1. Fetch data
-        df = fdr.DataReader(code) 
-        
-        if df.empty:
-            print(f"No data found for {stock.name} ({stock.code})")
-            return False
-
-        # 2. Update basic info (Last row)
-        last_row = df.iloc[-1]
-        stock.current_price = float(last_row['Close'])
-        
-        # 3. Calculate 52-week High/Low
-        one_year_df = df.tail(252)
-        stock.high_52w = float(one_year_df['High'].max())
-        stock.low_52w = float(one_year_df['Low'].min())
-
-        # 4. Candle Data (Full history)
-        candle_data = []
-        for index, row in df.iterrows():
-            candle_data.append({
-                "date": index.strftime('%Y-%m-%d'),
-                "close": float(row['Close'])
-            })
-        stock.candle_data = candle_data
-        
-        stock.save()
-        print(f"Updated {stock.name} ({stock.code})")
-        return True
-        
-    except Exception as e:
-        print(f"Failed to update {stock.name} ({stock.code}): {e}")
-        return False
-
-def update_all_stocks():
-    print("Updating stock data...")
-    stocks = Stock.objects.all()
-    count = 0
-    for stock in stocks:
-        if update_stock(stock):
-            count += 1
-    print(f"Finished updating {count} stocks.")
-
 import re
+from django.utils import timezone
+from django.db.models import Max
+from django.apps import apps
 
-def parse_mirae_sms(sms_text):
+def generate_employee_id():
     """
-    미래에셋증권 문자 파싱 함수
-    반환: {'stock_name':..., 'price':..., ...} 또는 None
+    Generates a unique employee_id in the format YYYYNNN (e.g., 2026001).
+    It checks both User and Agent models to ensure uniqueness across the system.
     """
-    data = {}
-    patterns = {
-        'stock_info': r'종목명\s*:\s*(.*?)\(([A-Z0-9]+)\)', 
-        'trade_type': r'매매구분\s*:\s*(매수|매도)',
-        'qty': r'체결수량\s*:\s*([\d,]+)주',
-        'price': r'체결단가\s*:\s*([\d,]+)원',
-        'order_no': r'주문번호\s*:\s*(\d+)',
+    User = apps.get_model('core', 'User')
+    Agent = apps.get_model('core', 'Agent')
+
+    year = timezone.now().year
+    prefix = str(year)
+
+    # Find max ID for the current year in both tables
+    max_user_id = User.objects.filter(employee_id__startswith=prefix).aggregate(Max('employee_id'))['employee_id__max']
+    max_agent_id = Agent.objects.filter(employee_id__startswith=prefix).aggregate(Max('employee_id'))['employee_id__max']
+
+    current_max = 0
+    
+    if max_user_id:
+        try:
+            current_max = max(current_max, int(max_user_id))
+        except ValueError:
+            pass
+            
+    if max_agent_id:
+        try:
+            current_max = max(current_max, int(max_agent_id))
+        except ValueError:
+            pass
+
+    if current_max == 0:
+        # Start of the year
+        return f"{prefix}001"
+    else:
+        # Increment
+        return str(current_max + 1)
+
+def parse_mirae_sms(text):
+    """
+    미래에셋증권 SMS 파싱 함수 (복원됨)
+    예상 포맷: [미래에셋] 매수체결 삼성전자 10주 70,000원
+    """
+    if not text:
+        return None
+
+    result = {
+        'stock_name': None,
+        'stock_code': None,
+        'quantity': 0,
+        'price': 0,
+        'amount': 0,
+        'trade_type': None # 'buy' or 'sell'
     }
 
-    try:
-        # 종목명 파싱
-        stock_match = re.search(patterns['stock_info'], sms_text)
-        if stock_match:
-            data['stock_name'] = stock_match.group(1).strip()
-            data['stock_code'] = stock_match.group(2).strip()
-        
-        # 매매구분
-        type_match = re.search(patterns['trade_type'], sms_text)
-        data['trade_type'] = type_match.group(1) if type_match else '기타'
+    # 1. 거래 유형 식별
+    if '매수' in text:
+        result['trade_type'] = 'buy'
+    elif '매도' in text:
+        result['trade_type'] = 'sell'
+    else:
+        return None # 매매 관련 아니면 무시
 
-        # 수량 (쉼표 제거)
-        qty_match = re.search(patterns['qty'], sms_text)
-        data['quantity'] = int(qty_match.group(1).replace(',', '')) if qty_match else 0
-
-        # 가격 (쉼표 제거)
-        price_match = re.search(patterns['price'], sms_text)
-        data['price'] = int(price_match.group(1).replace(',', '')) if price_match else 0
+    # 2. 종목명/코드 추출 (간이 로직)
+    # 괄호 안의 숫자(6자리)는 코드로 인식 -> (005930)
+    code_match = re.search(r'\(\d{6}\)', text)
+    if code_match:
+        result['stock_code'] = code_match.group(0).strip('()')
+    
+    # 종목명은 일반적으로 [미래에셋] 뒤, 혹은 체결 단어 뒤에 옴
+    # 예: "매수체결 삼성전자"
+    # 여기서는 단순화를 위해 정교한 NLP 대신 공백 기준 일부 추출 시도
+    # 실제로는 LLM이나 더 복잡한 정규식이 필요할 수 있음
+    
+    # 3. 수량, 단가 추출
+    # "10주", "1,000원" 패턴 찾기
+    qty_match = re.search(r'(\d+[,\d]*)\s*주', text)
+    if qty_match:
+        result['quantity'] = int(qty_match.group(1).replace(',', ''))
         
-        # 주문번호
-        order_match = re.search(patterns['order_no'], sms_text)
-        data['order_no'] = order_match.group(1) if order_match else None
-        
-        # 필수값이 없으면 실패 처리
-        if not data.get('order_no'):
-            return None
-            
-        return data
+    price_match = re.search(r'(\d+[,\d]*)\s*원', text)
+    if price_match:
+        result['price'] = int(price_match.group(1).replace(',', ''))
 
-    except Exception as e:
-        print(f"Parsing Error: {e}")
-        return None
+    if result['quantity'] and result['price']:
+        result['amount'] = result['quantity'] * result['price']
+
+    return result

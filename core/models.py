@@ -1,11 +1,13 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from .utils import generate_employee_id
 
 # 1. 회사 (Organization)
 class Organization(models.Model):
     name = models.CharField(max_length=100, verbose_name="회사명")
     description = models.TextField(blank=True, verbose_name="회사 설명")
+    cash_balance = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="현금 잔고") # [New]
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -45,6 +47,11 @@ class User(AbstractUser):
         help_text='Specific permissions for this user.', verbose_name='user permissions',
     )
 
+    def save(self, *args, **kwargs):
+        if not self.employee_id:
+            self.employee_id = generate_employee_id()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.username} ({self.employee_id if self.employee_id else 'No ID'})"
 
@@ -58,8 +65,15 @@ class Agent(models.Model):
     role = models.CharField(max_length=100, verbose_name="담당 업무")
     stock = models.ForeignKey('Stock', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="관리 종목")
     persona = models.TextField(verbose_name="프롬프트(페르소나)")
-    model_name = models.CharField(max_length=50, default='gpt-4o', verbose_name="사용 모델")
+    model_name = models.CharField(max_length=50, default='gpt-5-nano', verbose_name="사용 모델")
     profile_image = models.ImageField(upload_to='agents/', null=True, blank=True, verbose_name="프로필 이미지")
+    # [추가] 통합 사번 (YYYYNNN)
+    employee_id = models.CharField(max_length=20, unique=True, verbose_name="사번", null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.employee_id:
+            self.employee_id = generate_employee_id()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         dept = self.department_obj.name if self.department_obj else "소속미정"
@@ -195,10 +209,36 @@ class Stock(models.Model):
     high_52w = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="52주 고가")
     low_52w = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True, verbose_name="52주 저가")
     candle_data = models.JSONField(default=list, verbose_name="캔들 데이터(종가)")
+    
+    # [New] Metadata
+    market_cap = models.BigIntegerField(null=True, blank=True, verbose_name="시가총액")
+    per = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="PER")
+    pbr = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="PBR")
+    description = models.TextField(blank=True, verbose_name="기업 개요")
+    
     updated_at = models.DateTimeField(auto_now=True, verbose_name="최근 업데이트")
+
+    @property
+    def is_korean(self):
+        # Simple heuristic: Korean stock codes are numeric and length 6
+        return self.code.isdigit() and len(str(self.code)) == 6
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+
+# 9-1. 관심 종목 (Interest Stock)
+class InterestStock(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='interest_stocks', verbose_name="사용자")
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name='interested_users', verbose_name="종목")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'stock')
+        verbose_name = "관심 종목"
+        verbose_name_plural = "관심 종목 목록"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.stock.name}"
 
 import secrets
 
@@ -214,3 +254,68 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username}의 프로필"
+
+# 11. 회계 및 자금 트랜잭션 (Transaction)
+class Transaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('DEPOSIT', '입금'),
+        ('WITHDRAW', '출금'),
+        ('BUY', '매수'),
+        ('SELL', '매도'),
+        ('DIVIDEND', '배당'),
+        ('EXPENSE', '비용/지출'),
+    ]
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='transactions')
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES, verbose_name="거래 유형")
+    amount = models.DecimalField(max_digits=20, decimal_places=2, verbose_name="변동 금액")
+    related_asset = models.ForeignKey('Stock', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="관련 자산(종목)")
+    quantity = models.IntegerField(default=0, verbose_name="수량 변동")
+    price = models.DecimalField(max_digits=15, decimal_places=0, null=True, blank=True, verbose_name="단가")
+    profit = models.DecimalField(max_digits=15, decimal_places=0, default=0, verbose_name="실현손익 (Profit)")
+    fee = models.DecimalField(max_digits=15, decimal_places=0, default=0, verbose_name="수수료") # [K-IFRS]
+    tax = models.DecimalField(max_digits=15, decimal_places=0, default=0, verbose_name="세금")   # [K-IFRS]
+    balance_after = models.DecimalField(max_digits=15, decimal_places=0, verbose_name="거래 후 잔액")
+    description = models.TextField(blank=True, verbose_name="적요")
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name="일시")
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"[{self.get_transaction_type_display()}] {self.amount:,.0f}원 ({self.timestamp.strftime('%Y-%m-%d %H:%M')})"
+
+# 12. 일별 재무 스냅샷 (DailySnapshot)
+class DailySnapshot(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='daily_snapshots')
+    date = models.DateField(verbose_name="기준 일자")
+    
+    # BS (재무상태표)
+    total_cash = models.DecimalField(max_digits=20, decimal_places=2, verbose_name="현금 자산")
+    total_stock_value = models.DecimalField(max_digits=20, decimal_places=2, verbose_name="주식 평가액")
+    total_assets = models.DecimalField(max_digits=20, decimal_places=2, verbose_name="총 자산")
+    total_liabilities = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="총 부채")
+    total_equity = models.DecimalField(max_digits=20, decimal_places=2, verbose_name="자본 총계")
+    
+    # [K-IFRS] 자본 세부 항목
+    capital_stock = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="자본금")
+    retained_earnings = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="이익잉여금")
+
+    # IS (손익계산서 - 해당 일자 스냅샷 기준 누적 혹은 변동)
+    realized_pl = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="누적 실현 손익")
+    unrealized_pl = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="평가 손익")
+    
+    # [K-IFRS] 차감 항목
+    total_fees = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="누적 수수료")
+    total_taxes = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="누적 세금")
+    
+    net_income = models.DecimalField(max_digits=20, decimal_places=2, default=0, verbose_name="당기 순이익(추정)")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('organization', 'date')
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"{self.date} 재무보고 ({self.organization.name})"

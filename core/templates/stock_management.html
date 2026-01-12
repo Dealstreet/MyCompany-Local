@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+<style>
+    .dashboard-container {
+        padding: 30px;
+        background-color: #f1f5f9;
+        min-height: 100vh;
+    }
+
+    .modern-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+        transition: 0.2s;
+        cursor: pointer;
+    }
+
+    .modern-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-header-modern {
+        padding: 20px 25px;
+        font-weight: 700;
+        font-size: 16px;
+        color: #334155;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .search-input {
+        padding: 12px 20px;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        width: 100%;
+        max-width: 400px;
+        font-size: 14px;
+        outline: none;
+        transition: 0.2s;
+    }
+
+    .search-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Modal Styles */
+    .modal-stock-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .metric-card {
+        background: #f8fafc;
+        padding: 15px;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .metric-label {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+    }
+</style>
+
+<div class="dashboard-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-dark m-0">📊 종목 관리</h2>
+    </div>
+
+    <!-- Search & Add (Autocomplete) -->
+    <div class="mb-5 text-center position-relative">
+        <form action="{% url 'add_interest_stock' %}" method="post" class="d-inline-block w-100"
+            style="max-width: 500px;">
+            {% csrf_token %}
+            <div class="d-flex justify-content-center gap-2 position-relative">
+                <!-- Visible Input -->
+                <input type="text" id="stockSearchInput" class="search-input" placeholder="종목명 입력 (예: 삼성전자, Apple)..."
+                    autocomplete="off">
+
+                <!-- Hidden Input -->
+                <input type="hidden" name="keyword" id="stockCodeInput">
+
+                <button type="submit" class="btn btn-primary px-4 fw-bold"
+                    style="border-radius: 12px; height: 46px;">추가</button>
+            </div>
+
+            <!-- Autocomplete Dropdown -->
+            <ul id="autocompleteList" class="autocomplete-list"></ul>
+        </form>
+    </div>
+
+    <!-- Stock List (Table View) -->
+    <div class="card border-0 shadow-sm" style="border-radius: 16px; overflow: hidden;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4 py-3 text-secondary border-0" style="font-weight: 600;">종목명</th>
+                        <th class="py-3 text-secondary border-0" style="font-weight: 600;">현재가</th>
+                        <th class="py-3 text-secondary border-0 text-center" style="font-weight: 600;">국가</th>
+                        <th class="pe-4 py-3 text-secondary border-0 text-end" style="font-weight: 600;">관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                    <tr style="cursor: pointer;" onclick="openStockDetail({{ stock.id }})">
+                        <!-- Name & Code -->
+                        <td class="ps-4 py-3">
+                            <div class="fw-bold text-dark">{{ stock.name }}</div>
+                            <div class="text-secondary small">{{ stock.code }}</div>
+                        </td>
+
+                        <!-- Price -->
+                        <td class="py-3">
+                            <span class="fw-bold text-primary fs-5">
+                                {% if stock.is_korean %}
+                                {{ stock.current_price|default:0|floatformat:0|intcomma }}원
+                                {% else %}
+                                {{ stock.current_price|default:0|floatformat:2|intcomma }}$
+                                {% endif %}
+                            </span>
+                        </td>
+
+                        <!-- Country Badge -->
+                        <td class="py-3 text-center">
+                            {% if stock.code|slice:":1" == "0" or stock.code|slice:":1" == "1" %}
+                            <span class="badge bg-light text-dark border">한국</span>
+                            {% else %}
+                            <span class="badge bg-light text-dark border">미국</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Delete Action -->
+                        <td class="pe-4 py-3 text-end" onclick="event.stopPropagation();">
+                            <form action="{% url 'delete_interest_stock' stock.id %}" method="post"
+                                class="d-inline-block" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                                    삭제
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center py-5 text-muted">
+                            <span style="font-size: 40px;">🔭</span> <br>
+                            등록된 관심 종목이 없습니다. 상단 검색창을 통해 종목을 추가해보세요.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Stock Detail Modal -->
+<div class="modal fade" id="stockDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 20px; border:none;">
+            <div class="modal-body p-5">
+                <!-- Header -->
+                <div class="modal-stock-header">
+                    <div>
+                        <h2 class="fw-bold m-0" id="modalStockName">종목명</h2>
+                        <span class="text-muted" id="modalStockCode">000000</span>
+                    </div>
+                    <div class="text-end">
+                        <h2 class="fw-bold text-primary m-0" id="modalPrice">0원</h2>
+                        <span class="badge bg-success" id="modalBadge">실시간</span>
+                    </div>
+                </div>
+
+                <!-- Metrics: Updated Layout -->
+                <div class="row mb-4 g-3">
+                    <div class="col-md-4">
+                        <div class="metric-card">
+                            <div class="metric-label">시가총액</div>
+                            <div class="metric-value" id="modalMarketCap">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="metric-card">
+                            <div class="metric-label">52주 최고</div>
+                            <div class="metric-value" id="modalHigh52">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="metric-card">
+                            <div class="metric-label">52주 최저</div>
+                            <div class="metric-value" id="modalLow52">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart -->
+                <div id="stockChart" style="height: 400px; width:100%;"></div>
+
+                <!-- Description -->
+                <div class="mt-4 p-4 bg-light rounded-3">
+                    <h6 class="fw-bold mb-2">기업 개요</h6>
+                    <p class="text-secondary small m-0" id="modalDescription" style="line-height: 1.6;">
+                        로딩 중...
+                    </p>
+                </div>
+
+                <div class="text-end mt-4">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4"
+                        data-bs-dismiss="modal">닫기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ApexCharts -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script>
+    let chart = null;
+
+    function openStockDetail(stockId) {
+        // Show Modal
+        const modal = new bootstrap.Modal(document.getElementById('stockDetailModal'));
+        modal.show();
+
+        // Reset values
+        document.getElementById('modalMarketCap').innerText = '-';
+        document.getElementById('modalHigh52').innerText = '-';
+        document.getElementById('modalLow52').innerText = '-';
+        document.getElementById('modalDescription').innerText = '로딩 중...';
+
+        // Load Data
+        fetch(`{% url 'get_stock_detail' %}?stock_id=${stockId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Update Info
+                    document.getElementById('modalStockName').innerText = data.name;
+                    document.getElementById('modalStockCode').innerText = data.code;
+
+                    // Currency Formatting Logic
+                    const price = Number(data.price);
+                    const high52 = Number(data.high_52w || 0);
+                    const low52 = Number(data.low_52w || 0);
+
+                    // Check if it's a Korean stock (6 digits)
+                    const isKorean = /^\d{6}$/.test(data.code);
+
+                    if (isKorean) {
+                        document.getElementById('modalPrice').innerText = price.toLocaleString() + '원';
+                        document.getElementById('modalHigh52').innerText = high52.toLocaleString() + "원";
+                        document.getElementById('modalLow52').innerText = low52.toLocaleString() + "원";
+                    } else {
+                        document.getElementById('modalPrice').innerText = price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '$';
+                        document.getElementById('modalHigh52').innerText = high52.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "$";
+                        document.getElementById('modalLow52').innerText = low52.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "$";
+                    }
+
+                    // Market Cap Formatting (Jo/Eok)
+                    let capStr = "-";
+                    if (data.market_cap) {
+                        const cap = data.market_cap;
+                        const TRILLION = 1000000000000;
+                        const HUNDRED_MILLION = 100000000;
+
+                        if (cap >= TRILLION) {
+                            capStr = (cap / TRILLION).toFixed(2) + "조원";
+                        } else {
+                            capStr = Math.round(cap / HUNDRED_MILLION).toLocaleString() + "억원";
+                        }
+                    }
+                    document.getElementById('modalMarketCap').innerText = capStr;
+
+                    document.getElementById('modalDescription').innerText = data.description || "정보 없음";
+
+                    // Render Chart
+                    renderChart(data.candles, data.name);
+                }
+            });
+    }
+
+    function renderChart(candles, name) {
+        if (chart) {
+            chart.destroy();
+        }
+
+        const options = {
+            series: [{
+                data: candles
+            }],
+            chart: {
+                type: 'candlestick',
+                height: 350,
+                fontFamily: 'Pretendard, sans-serif'
+            },
+            title: {
+                text: name + ' (3년 / 주봉)',
+                align: 'left'
+            },
+            xaxis: {
+                type: 'datetime'
+            },
+            yaxis: {
+                tooltip: {
+                    enabled: true
+                },
+                labels: {
+                    formatter: function (value) {
+                        return Math.round(value).toLocaleString();
+                    }
+                }
+            },
+            plotOptions: {
+                candlestick: {
+                    colors: {
+                        upward: '#ef4444',
+                        downward: '#3b82f6'
+                    }
+                }
+            }
+        };
+
+        chart = new ApexCharts(document.querySelector("#stockChart"), options);
+        chart.render();
+    }
+</script>
+
+<style>
+    /* Autocomplete Styles */
+    .autocomplete-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        list-style: none;
+        padding: 0;
+        margin: 5px auto;
+        max-width: 500px;
+        /* Match form width */
+        max-height: 300px;
+        overflow-y: auto;
+        text-align: left;
+        display: none;
+        /* Hidden by default */
+    }
+
+    .autocomplete-item {
+        padding: 12px 20px;
+        cursor: pointer;
+        border-bottom: 1px solid #f1f5f9;
+        transition: 0.1s;
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+        background-color: #f8fafc;
+        color: #3b82f6;
+    }
+
+    .item-name {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .item-code {
+        font-size: 12px;
+        color: #64748b;
+        margin-left: 8px;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const input = document.getElementById('stockSearchInput');
+        const hiddenInput = document.getElementById('stockCodeInput');
+        const list = document.getElementById('autocompleteList');
+        let debounceTimer;
+
+        // Input Event (Debounced)
+        input.addEventListener('input', function () {
+            const query = this.value.trim();
+            if (query.length < 1) {
+                list.style.display = 'none';
+                return;
+            }
+
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                fetch(`{% url 'search_stock_api' %}?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        renderList(data.quotes);
+                    });
+            }, 300);
+        });
+
+        // Render List
+        function renderList(quotes) {
+            list.innerHTML = '';
+            if (!quotes || quotes.length === 0) {
+                list.style.display = 'none';
+                return;
+            }
+
+            quotes.forEach(q => {
+                const li = document.createElement('li');
+                li.className = 'autocomplete-item';
+                li.innerHTML = `
+                    <span class="item-name">${q.name}</span>
+                    <span class="item-code">${q.symbol}</span>
+                    <span class="badge bg-light text-secondary ms-2">${q.exch}</span>
+                `;
+
+                li.addEventListener('click', () => {
+                    input.value = `${q.name} (${q.symbol})`; // Show fancy text
+                    hiddenInput.value = q.symbol; // Submit real code
+                    list.style.display = 'none';
+                });
+
+                list.appendChild(li);
+            });
+            list.style.display = 'block';
+        }
+
+        // Close on outside click
+        document.addEventListener('click', function (e) {
+            if (!input.contains(e.target) && !list.contains(e.target)) {
+                list.style.display = 'none';
+            }
+        });
+    });
+</script>
+
+{% endblock %}

@@ -24,10 +24,14 @@ urlpatterns = [
     # 3. 투자 관리 (신규 추가: 꼼먕 투자일지 포트폴리오)
     # investment_management 함수와 연결
     path('investment/', views.investment_management, name='investment_management'),
+    
+    # 3-1. 재무 관리
+    path('finance/', views.financial_management, name='financial_management'),
+    path('finance/cash-op/', views.cash_operation, name='cash_operation'), # [추가] 입출금 UI Action
 
     # 4. 결재 관련 (작성, 목록, 상세)
     # approval_detail에서 투자 로그(InvestmentLog) 연동 처리
-    path('approval/create/', views.create_self_approval, name='create_self_approval'),
+
     path('approval/list/', views.approval_list, name='approval_list'),
     path('approval/detail/<int:pk>/', views.approval_detail, name='approval_detail'),
 
@@ -35,7 +39,15 @@ urlpatterns = [
     path('org/', views.org_chart, name='org_chart'),
 
     # [추가] 아이폰 문자 연동 웹훅 URL
+    # [추가] 아이폰 문자 연동 웹훅 URL
     path('api/webhook/sms/', SmsWebhookView.as_view(), name='sms_webhook'),
+
+    # [New] Stock Management
+    path('stock/', views.stock_management, name='stock_management'),
+    path('stock/add/', views.add_interest_stock, name='add_interest_stock'),
+    path('stock/delete/<int:stock_id>/', views.delete_interest_stock, name='delete_interest_stock'),
+    path('stock/detail/', views.get_stock_detail, name='get_stock_detail'),
+    path('stock/search/', views.search_stock_api, name='search_stock_api'),
 ]
 
 # 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정

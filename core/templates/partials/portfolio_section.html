@@ -7,11 +7,13 @@
     <table class="modern-table">
         <thead>
             <tr>
-                <th width="30%">종목명</th>
-                <th width="15%" class="text-end">보유수량</th>
-                <th width="20%" class="text-end">평균단가</th>
+                <th width="15%">종목명</th>
+                <th width="10%" class="text-end">보유수량</th>
+                <th width="15%" class="text-end">평균단가</th>
                 <th width="20%" class="text-end">총 매수금액</th>
-                <th width="15%" class="text-end">승인일자</th>
+                <th width="15%" class="text-end" style="color:#2563eb;">현재가</th>
+                <th width="15%" class="text-end" style="color:#2563eb;">평가금액</th>
+                <th width="10%" class="text-end">승인일자</th>
             </tr>
         </thead>
         <tbody>
@@ -21,11 +23,13 @@
                 <td class="text-end fw-bold">{{ item.quantity|intcomma }}주</td>
                 <td class="text-end">{{ item.avg_price|floatformat:0|intcomma }}원</td>
                 <td class="text-end fw-bold text-dark">{{ item.total_amount|intcomma }}원</td>
+                <td class="text-end fw-bold text-primary">{{ item.current_price|floatformat:0|intcomma }}원</td>
+                <td class="text-end fw-bold text-primary">{{ item.eval_amount|floatformat:0|intcomma }}원</td>
                 <td class="text-end text-secondary small">{{ item.approved_at|date:"y.m.d" }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 60px; color: #94a3b8;">
+                <td colspan="7" style="text-align: center; padding: 60px; color: #94a3b8;">
                     보유 중인 자산이 없습니다.
                 </td>
             </tr>

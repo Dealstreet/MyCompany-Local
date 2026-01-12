@@ -3,7 +3,8 @@ from openai import OpenAI
 import os
 import re
 from django.utils import timezone
-from .models import Agent, Approval, Organization, User, Message
+from .models import Agent, Approval, Organization, User, Message, DailySnapshot, Transaction, Stock
+from django.db.models import Sum
 
 # OpenAI 클라이언트 설정
 api_key = os.getenv("OPENAI_API_KEY")
@@ -112,3 +113,44 @@ def create_approval_draft(prompt, agent_id, user_id, org_id, temp_msg_id):
         except:
             pass
         return f"실패: {str(e)}"
+
+# [일일 스냅샷] 매일 밤 (혹은 접속 시) 실행되어 재무상태표 기록
+@shared_task
+def create_daily_snapshot(org_id):
+    try:
+        org = Organization.objects.get(id=org_id)
+        today = timezone.now().date()
+        
+        from .services import FinancialService
+        
+        # 1. 재무 데이터 계산 (FinancialService 사용)
+        financials = FinancialService.calculate_financials(org)
+        
+        # 2. 스냅샷 저장
+        snapshot, created = DailySnapshot.objects.update_or_create(
+            organization=org,
+            date=today,
+            defaults={
+                'total_cash': financials['total_cash'],
+                'total_stock_value': financials['total_stock_value'],
+                'total_assets': financials['total_assets'],
+                'total_liabilities': financials['total_liabilities'],
+                'total_equity': financials['total_equity'],
+                
+                # [K-IFRS]
+                'capital_stock': financials['capital_stock'],
+                'retained_earnings': financials['retained_earnings'],
+                
+                'realized_pl': financials['realized_pl'],
+                'unrealized_pl': financials['unrealized_pl'],
+                
+                # [K-IFRS]
+                'total_fees': financials['total_fees'],
+                'total_taxes': financials['total_taxes'],
+                
+                'net_income': financials['net_income']
+            }
+        )
+        return f"Snapshot created for {org.name} on {today}"
+    except Exception as e:
+        return f"Snapshot failed: {str(e)}"

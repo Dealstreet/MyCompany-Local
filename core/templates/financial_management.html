@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block content %}
+
+<style>
+    .dashboard-container {
+        padding: 30px;
+        background-color: #f1f5f9;
+        min-height: 100vh;
+    }
+
+    .modern-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 30px;
+    }
+
+    .card-header-modern {
+        padding: 20px 25px;
+        border-bottom: 1px solid #f1f5f9;
+        font-weight: 700;
+        font-size: 16px;
+        color: #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modern-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .modern-table th {
+        background: #f8fafc;
+        padding: 15px 20px;
+        text-align: left;
+        color: #64748b;
+        font-weight: 600;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .modern-table td {
+        padding: 15px 20px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+    }
+
+    .btn-action {
+        font-size: 14px;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 8px;
+        border: none;
+        transition: 0.2s;
+        text-decoration: none;
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-deposit {
+        background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .btn-deposit:hover {
+        background: linear-gradient(135deg, #059669, #047857);
+        color: white;
+    }
+
+    .btn-withdraw {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .btn-withdraw:hover {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        color: white;
+    }
+</style>
+
+<div class="dashboard-container">
+    <!-- Header: Title & Controls -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="fw-bold text-dark m-0">📉 재무 관리</h2>
+        </div>
+
+        <div class="d-flex gap-2">
+            <!-- Date Selector -->
+            <form method="get" class="d-flex align-items-center bg-white p-1 rounded border">
+                <input type="date" name="date" value="{{ selected_date }}" class="form-control form-control-sm border-0"
+                    onchange="this.form.submit()">
+                <a href="{% url 'financial_management' %}"
+                    class="btn btn-sm btn-link text-decoration-none text-secondary">Reset</a>
+            </form>
+
+            <!-- Cash Ops Buttons -->
+            <button class="btn-action btn-deposit" data-bs-toggle="modal" data-bs-target="#depositModal">
+                💰 입금
+            </button>
+            <button class="btn-action btn-withdraw" data-bs-toggle="modal" data-bs-target="#withdrawModal">
+                💸 출금
+            </button>
+        </div>
+    </div>
+
+    <!-- 1. 재무제표 (Financial Statements) -->
+    <div class="modern-card">
+        <div class="card-header-modern">
+            <span>📑 재무제표</span>
+            <span style="font-size:12px; color:#64748b;">
+                {% if selected_date %}
+                <span class="badge bg-warning text-dark me-2">과거 조회 중</span>
+                {% endif %}
+                기준일: {{ latest_snapshot.date|default:"N/A" }}
+            </span>
+        </div>
+        <div style="padding: 25px;">
+            {% if latest_snapshot %}
+            <div class="row">
+                <!-- BS -->
+                <div class="col-md-6">
+                    <h5 class="fw-bold mb-3" style="font-size:15px; color:#334155;">재무상태표</h5>
+                    <table class="modern-table" style="border: 1px solid #e2e8f0;">
+                        <tr>
+                            <th style="width:50%;">자산</th>
+                            <td class="text-end fw-bold">{{ latest_snapshot.total_assets|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <tr>
+                            <td class="ps-4" style="color:#64748b; font-size:13px;"> ㄴ 현금 자산</td>
+                            <td class="text-end">{{ latest_snapshot.total_cash|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <tr>
+                            <td class="ps-4" style="color:#64748b; font-size:13px;"> ㄴ 주식 평가액</td>
+                            <td class="text-end">{{ latest_snapshot.total_stock_value|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <tr>
+                            <th>부채</th>
+                            <td class="text-end">{{ latest_snapshot.total_liabilities|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <tr style="background-color:#f8fafc;">
+                            <th>자본</th>
+                            <td class="text-end fw-bold">{{ latest_snapshot.total_equity|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <!-- K-IFRS Equity Sub-items -->
+                        <tr>
+                            <td class="ps-4" style="color:#64748b; font-size:13px;"> ㄴ 자본금</td>
+                            <td class="text-end">{{ latest_snapshot.capital_stock|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <tr>
+                            <td class="ps-4" style="color:#64748b; font-size:13px;"> ㄴ 이익잉여금</td>
+                            <td class="text-end">{{ latest_snapshot.retained_earnings|floatformat:0|intcomma }}원</td>
+                        </tr>
+                    </table>
+                </div>
+                <!-- IS -->
+                <div class="col-md-6">
+                    <h5 class="fw-bold mb-3" style="font-size:15px; color:#334155;">손익계산서</h5>
+                    <table class="modern-table" style="border: 1px solid #e2e8f0;">
+                        <tr>
+                            <th style="width:50%;">실현 손익</th>
+                            <td class="text-end">{{ latest_snapshot.realized_pl|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <tr>
+                            <th>평가 손익</th>
+                            <td class="text-end">{{ latest_snapshot.unrealized_pl|floatformat:0|intcomma }}원</td>
+                        </tr>
+                        <!-- K-IFRS Deductions -->
+                        <tr>
+                            <td style="color:#ef4444;">(-) 수수료</td>
+                            <td class="text-end text-danger">{{ latest_snapshot.total_fees|floatformat:0|intcomma }}원
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color:#ef4444;">(-) 세금</td>
+                            <td class="text-end text-danger">{{ latest_snapshot.total_taxes|floatformat:0|intcomma }}원
+                            </td>
+                        </tr>
+                        <tr style="background-color:#f8fafc;">
+                            <th>당기 순이익</th>
+                            <td
+                                class="text-end fw-bold {{ latest_snapshot.net_income|yesno:'text-danger,text-primary' }}">
+                                {{ latest_snapshot.net_income|floatformat:0|intcomma }}원</td>
+                        </tr>
+                    </table>
+                    <div class="text-end mt-2">
+                        <small class="text-muted">* 매일 자정 혹은 시스템 시작 시 자동 갱신됩니다.</small>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <span style="font-size: 40px;">📭</span> <br>
+                해당 날짜의 재무제표 데이터가 없습니다.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 2. 거래 내역 (Ledger) -->
+    <div class="modern-card">
+        <div class="card-header-modern">
+            <span>📒 거래 내역</span>
+            <span style="font-size:12px; color:#64748b;">전체 내역 조회</span>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th width="15%">일시</th>
+                        <th width="10%">유형</th>
+                        <th width="15%" class="text-end">금액</th>
+                        <th width="15%" class="text-end">잔액</th>
+                        <th width="15%">관련 자산</th>
+                        <th width="30%">적요</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                    <tr>
+                        <td class="text-secondary small">{{ tx.timestamp|date:"Y-m-d H:i" }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if tx.transaction_type == 'DEPOSIT' %}bg-success
+                                {% elif tx.transaction_type == 'WITHDRAW' %}bg-danger
+                                {% elif tx.transaction_type == 'BUY' %}bg-warning text-dark
+                                {% elif tx.transaction_type == 'SELL' %}bg-primary
+                                {% else %}bg-secondary{% endif %}">
+                                {{ tx.get_transaction_type_display }}
+                            </span>
+                        </td>
+                        <td class="text-end fw-bold 
+                            {% if tx.amount > 0 %}text-primary{% else %}text-danger{% endif %}">
+                            {{ tx.amount|floatformat:0|intcomma }}원
+                        </td>
+                        <td class="text-end text-dark">{{ tx.balance_after|floatformat:0|intcomma }}원</td>
+                        <td class="text-secondary">{{ tx.related_asset.name|default:"-" }}</td>
+                        <td class="small">{{ tx.description }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">거래 내역이 없습니다.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            {% if transactions.has_other_pages %}
+            <div class="d-flex justify-content-center p-3 gap-2">
+                {% if transactions.has_previous %}
+                <a href="?page={{ transactions.previous_page_number }}{% if selected_date %}&date={{ selected_date }}{% endif %}"
+                    class="btn btn-sm btn-outline-secondary">&lt;</a>
+                {% endif %}
+                <span class="d-flex align-items-center small px-2">Page {{ transactions.number }}</span>
+                {% if transactions.has_next %}
+                <a href="?page={{ transactions.next_page_number }}{% if selected_date %}&date={{ selected_date }}{% endif %}"
+                    class="btn btn-sm btn-outline-secondary">&gt;</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Deposit Modal -->
+<div class="modal fade" id="depositModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" action="{% url 'cash_operation' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="op_type" value="deposit">
+            <div class="modal-header">
+                <h5 class="modal-title">💰 자금 입금</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">입금액 (원)</label>
+                    <input type="number" name="amount" class="form-control" placeholder="금액 입력" required min="1">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">적요</label>
+                    <input type="text" name="description" class="form-control" placeholder="예: 자본금충당" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="submit" class="btn btn-success">입금하기</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Withdraw Modal -->
+<div class="modal fade" id="withdrawModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form class="modal-content" action="{% url 'cash_operation' %}" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="op_type" value="withdraw">
+            <div class="modal-header">
+                <h5 class="modal-title">💸 자금 출금</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">출금액 (원)</label>
+                    <input type="number" name="amount" class="form-control" placeholder="금액 입력" required min="1">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">적요</label>
+                    <input type="text" name="description" class="form-control" placeholder="예: 운영비지출" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="submit" class="btn btn-danger">출금하기</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

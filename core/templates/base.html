@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}꼼망컴퍼니 CIS{% endblock %}</title>
+    <title>{% block title %}{{ user.organization.name }} CIS{% endblock %}</title>
+    <!-- Bootstrap CSS (Unified) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
@@ -159,7 +161,7 @@
 
 <body>
     <div class="sidebar">
-        <a href="{% url 'index' %}" class="logo">🏢 꼼망컴퍼니 CIS</a>
+        <a href="{% url 'index' %}" class="logo">🏢 {{ user.organization.name }} CIS</a>
 
         <div class="my-profile">
             <div class="profile-card">
@@ -173,10 +175,14 @@
             </div>
         </div>
 
-        <a href="{% url 'create_self_approval' %}" class="menu-btn btn-orange">📝 직접 기안 작성</a>
+
         <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
 
-        <a href="{% url 'investment_management' %}" class="menu-btn btn-green">📈 투자 관리 (포트폴리오)</a>
+        <a href="{% url 'investment_management' %}" class="menu-btn btn-green">📈 투자 관리</a>
+        <a href="{% url 'stock_management' %}" class="menu-btn"
+            style="background: linear-gradient(135deg, #FF6B6B, #EE5253);">📊 종목 관리</a>
+        <a href="{% url 'financial_management' %}" class="menu-btn"
+            style="background: linear-gradient(135deg, #1abc9c, #16a085);">📉 재무 관리</a>
 
         <a href="{% url 'org_chart' %}" class="menu-btn btn-purple">📊 조직도 보기</a>
 
@@ -204,6 +210,8 @@
     <div class="main-wrapper">
         {% block content %}{% endblock %}
     </div>
+    <!-- Bootstrap JS (Unified) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

@@ -254,22 +254,74 @@
                         <input type="hidden" name="action" value="create_draft">
 
                         <div class="mb-3">
-                            <label class="input-label">종목명 (Stock Name)</label>
-                            <input type="text" name="stock_name" class="input-field" placeholder="예: 삼성전자" required
-                                autocomplete="off">
-                            <!-- 이름 기반으로 변경 -->
+                            <label class="input-label">종목명</label>
+                            <select name="stock_name" id="stockNameSelect" class="input-field" required>
+                                <option value="" disabled selected>종목 선택</option>
+                                {% for stock in all_stocks %}
+                                <option value="{{ stock.name }}" data-price="{{ stock.current_price|default:0 }}">{{
+                                    stock.name }} ({{ stock.code }})</option>
+                                {% endfor %}
+                            </select>
                         </div>
 
                         <div class="row">
-                            <div class="col-6">
-                                <label class="input-label">매수 금액 (원)</label>
-                                <input type="number" name="total_amount" class="input-field" placeholder="0" required>
+                            <div class="col-4">
+                                <label class="input-label">매수 단가</label>
+                                <input type="number" name="buy_price" id="buyPrice" class="input-field" placeholder="0"
+                                    required>
                             </div>
-                            <div class="col-6">
+                            <div class="col-4">
                                 <label class="input-label">수량 (주)</label>
-                                <input type="number" name="quantity" class="input-field" placeholder="0" required>
+                                <input type="number" name="quantity" id="buyQuantity" class="input-field"
+                                    placeholder="0" required>
+                            </div>
+                            <div class="col-4">
+                                <label class="input-label">총 매수금액</label>
+                                <input type="number" name="total_amount" id="buyTotal" class="input-field"
+                                    placeholder="0" required>
                             </div>
                         </div>
+
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function () {
+                                const stockSelect = document.getElementById('stockNameSelect');
+                                const priceInput = document.getElementById('buyPrice');
+                                const qtyInput = document.getElementById('buyQuantity');
+                                const totalInput = document.getElementById('buyTotal');
+
+                                // Stock Selected -> Auto-fill Price
+                                stockSelect.addEventListener('change', function () {
+                                    const selectedOption = this.options[this.selectedIndex];
+                                    const price = selectedOption.getAttribute('data-price');
+                                    if (price) {
+                                        priceInput.value = Math.floor(Number(price));
+                                        updateTotal(); // Recalculate if qty exists
+                                    }
+                                });
+
+                                // Price or Qty Changed -> Update Total
+                                function updateTotal() {
+                                    const p = Number(priceInput.value);
+                                    const q = Number(qtyInput.value);
+                                    if (p && q) {
+                                        totalInput.value = Math.floor(p * q);
+                                    }
+                                }
+
+                                // Total Changed -> Update Qty (keep Price fixed)
+                                function updateQty() {
+                                    const t = Number(totalInput.value);
+                                    const p = Number(priceInput.value);
+                                    if (t && p) {
+                                        qtyInput.value = Math.floor(t / p);
+                                    }
+                                }
+
+                                priceInput.addEventListener('input', updateTotal);
+                                qtyInput.addEventListener('input', updateTotal);
+                                totalInput.addEventListener('input', updateQty);
+                            });
+                        </script>
 
                         <button type="submit" class="btn-order">주문 기안 즉시 발송</button>
                     </form>
@@ -305,8 +357,8 @@
                 </div>
             </div>
         </div>
-
     </div>
+
 
     <div class="modern-card" id="portfolio-section">
         {% include 'partials/portfolio_section.html' %}

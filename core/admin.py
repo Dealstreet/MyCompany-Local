@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Organization, Agent, Task, Approval, ApprovalLine, Message, Stock, UserProfile, InvestmentLog, Department
+from .models import User, Organization, Agent, Task, Approval, ApprovalLine, Message, Stock, UserProfile, InvestmentLog, Department, Transaction
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -12,6 +12,13 @@ class InvestmentLogAdmin(admin.ModelAdmin):
     list_filter = ('source', 'status', 'agent', 'user')
 
 # 1. 사용자 관리 (기존 설정 유지)
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    list_display = ('timestamp', 'transaction_type', 'amount', 'profit', 'related_asset', 'organization')
+    list_filter = ('transaction_type', 'organization', 'timestamp')
+    search_fields = ('description', 'related_asset__name')
+    ordering = ('-timestamp',)
+
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         ('CIS 추가 정보', {'fields': ('organization', 'role')}),
@@ -52,6 +59,9 @@ class AgentAdmin(admin.ModelAdmin):
         ('담당 업무 및 분석 대상', {'fields': ('role', 'stock')}),
         ('AI 엔진 설정', {'fields': ('model_name', 'persona')}),
     )
+
+    class Media:
+        js = ('admin/js/agent_admin.js',)
 
 # 5. 기타 모델 등록
 @admin.register(Task)
