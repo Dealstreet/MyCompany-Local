@@ -108,8 +108,10 @@ class FinancialService:
         Calculates current financial statements based on the Transaction ledger.
         Returns a dictionary.
         """
-        # 1. Cash (Source of Truth: Organization Model)
-        cash = organization.cash_balance
+        # 1. Cash (Source of Truth: Transaction Ledger)
+        # We calculate cash strictly from transactions to ensure integrity.
+        cash_aggregation = Transaction.objects.filter(organization=organization).aggregate(Sum('amount'))
+        cash = cash_aggregation['amount__sum'] or 0
 
         # 2. Stock Holdings & Value
         holdings = {} # {stock_id: quantity}
@@ -135,10 +137,12 @@ class FinancialService:
              total_taxes += tx.tax
 
              if tx.transaction_type == 'BUY':
+                 # Amount is negative for BUY. Principal part is abs(amount) - fee.
                  principal = abs(tx.amount) - tx.fee
                  total_buy_cost += principal
              
              elif tx.transaction_type == 'SELL':
+                 # Amount is positive. Revenue principal = amount + fee + tax
                  principal = tx.amount + tx.fee + tx.tax
                  total_sell_revenue += principal
                  total_realized_profit += tx.profit
@@ -159,10 +163,16 @@ class FinancialService:
                     continue
 
         # 3. Income Statement (First, to get Net Income)
+        # Cost of Goods Sold (approx) = Revenue - Realized Profit
+        # Note: This implies 'profit' on transaction was calculated correctly (Revenue - Cost Basis).
         cogs = total_sell_revenue - total_realized_profit
+        
+        # Remaining Cost Basis = Total Buy Cost - COGS
         remaining_cost_basis = total_buy_cost - cogs
         
+        # Unrealized P/L = Current Value - Remaining Cost Basis
         unrealized_pl = total_stock_value - remaining_cost_basis
+        
         realized_pl = total_realized_profit
         
         # [K-IFRS Logic]
@@ -215,3 +225,90 @@ class FinancialService:
             'total_taxes': total_taxes,
             'net_income': raw_net_income # Income Statement shows 'Performance' regardless of withdrawals
         }
+
+    @staticmethod
+    def get_portfolio_data(organization, account=None):
+        """
+        Calculates portfolio holdings aggregated from transactions.
+        Optional: specific account filtering.
+        """
+        portfolio_map = {}
+        
+        # Filter Transactions
+        txs = Transaction.objects.filter(
+            organization=organization, 
+            related_asset__isnull=False
+        )
+        if account:
+            txs = txs.filter(account=account)
+            
+        txs = txs.select_related('related_asset').order_by('timestamp')
+
+        for tx in txs:
+            sid = tx.related_asset.id
+            if sid not in portfolio_map:
+                portfolio_map[sid] = {
+                    'stock': tx.related_asset,
+                    'stock_name': tx.related_asset.name,
+                    'stock_code': tx.related_asset.code,
+                    'quantity': 0,
+                    'total_amount': 0,
+                    'avg_price': 0,
+                    'current_price': 0,
+                    'eval_amount': 0,
+                    'yield': 0,
+                    'approved_at': tx.timestamp # Init with first found
+                }
+            
+            p = portfolio_map[sid]
+            p['approved_at'] = tx.timestamp # Update to latest
+            
+            if tx.transaction_type == 'BUY':
+                # Update Avg Price (Weighted Average)
+                new_qty = tx.quantity
+                cost = abs(tx.amount) - tx.fee # Principal
+                
+                # (Old Cost + New Cost) / Total Qty
+                current_val = p['quantity'] * p['avg_price']
+                total_qty = p['quantity'] + new_qty
+                
+                if total_qty > 0:
+                    p['avg_price'] = (current_val + cost) / total_qty
+                else:
+                    p['avg_price'] = 0
+                
+                p['quantity'] += new_qty
+                p['total_amount'] += cost
+                
+            elif tx.transaction_type == 'SELL':
+                # Reduce Quantity, Avg Price stays same
+                qty_sold = abs(tx.quantity)
+                p['quantity'] -= qty_sold
+                
+                # Reduce allocated cost basis
+                cost_removed = qty_sold * p['avg_price']
+                p['total_amount'] -= cost_removed
+
+        # Convert to list and filter zero holdings
+        portfolio_list = []
+        for sid, p in portfolio_map.items():
+            if p['quantity'] > 0:
+                stock = p['stock']
+                # Fetch Current Price
+                cur_price = stock.current_price
+                if not cur_price:
+                        cur_price = 0
+                
+                p['current_price'] = cur_price
+                p['eval_amount'] = cur_price * p['quantity']
+                # Adding formatted currency for display if needed purely in backend, but keep raw for template template tags
+                
+                # Yield
+                if p['total_amount'] > 0:
+                        p['yield'] = ((p['eval_amount'] - p['total_amount']) / p['total_amount']) * 100
+                else:
+                        p['yield'] = 0
+                        
+                portfolio_list.append(p)
+        
+        return portfolio_list

@@ -1,6 +1,6 @@
 import re
 from django.utils import timezone
-from django.db.models import Max
+from django.db.models import Max, Q
 from django.apps import apps
 
 def generate_employee_id():
@@ -89,3 +89,146 @@ def parse_mirae_sms(text):
         result['amount'] = result['quantity'] * result['price']
 
     return result
+
+def number_to_hangul(number):
+    """
+    Converts an integer to Korean number string (e.g. 1000 -> 일천).
+    Simple implementation for amounts.
+    """
+    if number == 0:
+        return "영"
+    
+    units = ["", "만", "억", "조"]
+    nums = ["", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"]
+    
+    result = []
+    str_num = str(number)
+    length = len(str_num)
+    
+    # 4자리씩 끊어서 처리
+    # Reversing to process chunks of 4
+    reversed_str = str_num[::-1]
+    chunks = [reversed_str[i:i+4][::-1] for i in range(0, length, 4)]
+    
+    for i, chunk in enumerate(chunks):
+        chunk_num = int(chunk)
+        if chunk_num == 0:
+            continue
+            
+        chunk_str = ""
+        for j, digit in enumerate(chunk):
+            n = int(digit)
+            if n == 0:
+                continue
+                
+            # 자릿수 (천, 백, 십, 일)
+            pos = len(chunk) - 1 - j
+            
+            # 1일 경우: 십, 백, 천 단위에서는 생략 가능 (예: 일백 -> 백), 하지만 '금 일천 원' 형식은 '일'을 붙이는 경우가 많음
+            # 금융권/공문서 정석은 '일금 일천 원'
+            chunk_str += nums[n]
+            
+            if pos == 1:
+                chunk_str += "십"
+            elif pos == 2:
+                chunk_str += "백"
+            elif pos == 3:
+                chunk_str += "천"
+                
+        result.append(chunk_str + units[i])
+        
+    return "".join(reversed(result))
+
+def format_approval_content(stock_name, stock_code, quantity, price, total_amount, trade_type, date=None, reason="", include_attachment=True, order_no="N/A"):
+    """
+    Generates standardized approval document content.
+    """
+    if not date:
+        date = timezone.now().date()
+        
+    # 날짜 분해
+    year = date.year
+    month = date.month
+    day = date.day
+    # 요일 구하기
+    days = ['월', '화', '수', '목', '금', '토', '일']
+    weekday = days[date.weekday()]
+    
+    # 한글 금액 변환
+    amount_hangul = number_to_hangul(total_amount)
+    
+    # 매매구분 한글
+    trade_type_kor = "매수" if trade_type == 'buy' else "매도"
+    
+    # [공통 서식] 주식 매매 체결 결과 보고서 (HTML 변환)
+    # Summernote 에디터 호환을 위해 HTML 태그 사용
+
+    template = f"""
+    <h3 style="text-align: center; font-weight: bold;">주식 매매 체결 결과 보고서</h3>
+    <br>
+    <p><b>1. 관련:</b> {stock_name} {quantity:,}주 주당 {price:,}원 {trade_type_kor}</p>
+    <p><b>2. 위와 관련하여 주식 {trade_type_kor} 체결 결과를 아래와 같이 보고합니다.</b></p>
+    <div style="margin-left: 20px;">
+        <p><b>가. 체결 개요</b></p>
+        <ul style="list-style-type: none; padding-left: 20px;">
+            <li>1) 일자: {year}년 {month}월 {day}일 ({weekday})</li>
+            <li>2) 계좌: 미래에셋증권 (예금주: 꼼망컴퍼니)</li>
+            <li>3) 주문 번호: {order_no}</li>
+        </ul>
+        <br>
+        <p><b>나. 체결 상세 내역</b></p>
+        <table class="table table-bordered" style="width: 100%; border-collapse: collapse; text-align: center; border: 1px solid black;">
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="border: 1px solid black; padding: 8px;">종목명(종목코드)</th>
+                    <th style="border: 1px solid black; padding: 8px;">매매 구분</th>
+                    <th style="border: 1px solid black; padding: 8px;">체결 수량</th>
+                    <th style="border: 1px solid black; padding: 8px;">체결 단가</th>
+                    <th style="border: 1px solid black; padding: 8px;">체결 금액</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="border: 1px solid black; padding: 8px;">{stock_name}<br>({stock_code})</td>
+                    <td style="border: 1px solid black; padding: 8px;">{trade_type_kor}</td>
+                    <td style="border: 1px solid black; padding: 8px;">{quantity:,} 주</td>
+                    <td style="border: 1px solid black; padding: 8px;">{price:,} 원</td>
+                    <td style="border: 1px solid black; padding: 8px;">금 {total_amount:,} 원</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <br>
+    <p><b>3. 비고:</b> {reason if reason else 'CEO 직접 지시' if not include_attachment else 'SMS 체결 알림'}</p>
+    """
+    if include_attachment:
+        template += "<br><p>붙임 매매 체결 확인서(문자 알림 사본) 1부. 끝.</p>"
+    else:
+        template += "<br><p>끝.</p>"
+        
+    return template
+
+def get_agent_by_stock(stock_name, stock_code):
+    """
+    Returns the Agent who manages the given stock (by name or code).
+    Returns None if no matching stock or agent is found.
+    """
+    Stock = apps.get_model('core', 'Stock')
+    Agent = apps.get_model('core', 'Agent')
+    
+    stock_obj = None
+    
+    # 1. Try to find stock by code
+    if stock_code:
+        stock_obj = Stock.objects.filter(code=stock_code).first()
+        
+    # 2. Try to find stock by name if not found by code
+    if not stock_obj and stock_name:
+        stock_obj = Stock.objects.filter(name=stock_name).first()
+        
+    if stock_obj:
+        # Find agent managing this stock
+        # [Refactor] Agent.stock removed -> use Stock.agent
+        return stock_obj.agent
+        
+    return None

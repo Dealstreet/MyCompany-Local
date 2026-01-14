@@ -6,24 +6,14 @@
 <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
 
 <style>
-    .org-container {
-        padding: 40px;
-        background-color: #f8fafc;
-        height: 100%;
-        overflow: auto;
-        display: flex;
-        justify-content: center;
-        align-items: flex-start;
-    }
+    /* 세로 간격 */
 
-    /* Google Chart 기본 테이블 선 제거 및 커스텀 */
-    table { border-collapse: separate !important; }
-    
-    /* 연결선 스타일 커스텀 */
-    .google-visualization-orgchart-lineleft { border-left: 2px solid #cbd5e1 !important; }
-    .google-visualization-orgchart-lineright { border-right: 2px solid #cbd5e1 !important; }
-    .google-visualization-orgchart-linebottom { border-bottom: 2px solid #cbd5e1 !important; }
-    .google-visualization-orgchart-connrow-medium { height: 30px; } /* 세로 간격 */
+    .org-container {
+        padding: 30px;
+        background-color: #f1f5f9;
+        min-height: 100vh;
+        overflow: auto;
+    }
 
     /* 노드 카드 공통 디자인 */
     .node-card {
@@ -31,47 +21,106 @@
         padding: 10px;
         border-radius: 8px;
         background: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         border: 1px solid #e2e8f0;
         cursor: pointer;
         transition: 0.2s;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        text-decoration: none; color: inherit;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        color: inherit;
     }
-    .node-card:hover { transform: translateY(-3px); box-shadow: 0 8px 12px rgba(0,0,0,0.1); border-color: #3b82f6; }
+
+    .node-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+        border-color: #3b82f6;
+    }
 
     /* CEO 스타일 */
-    .ceo-card { border-top: 4px solid #3b82f6; background: #fff; }
-    .profile-icon { font-size: 24px; margin-bottom: 5px; }
+    .ceo-card {
+        border-top: 4px solid #3b82f6;
+        background: #fff;
+    }
+
+    .profile-icon {
+        font-size: 24px;
+        margin-bottom: 5px;
+    }
 
     /* 부서장 스타일 */
-    .dept-card { background: #1e293b; color: white; border: none; width: 140px; }
-    .dept-card .node-name { color: white; font-weight: bold; }
+    .dept-card {
+        background: #1e293b;
+        color: white;
+        border: none;
+        width: 140px;
+    }
+
+    .dept-card .node-name {
+        color: white;
+        font-weight: bold;
+    }
 
     /* 직원 스타일 */
-    .agent-card { min-height: 100px; }
-    .img-circle {
-        width: 40px; height: 40px; border-radius: 50%;
-        background: #f1f5f9; margin-bottom: 8px; overflow: hidden;
-        display: flex; align-items: center; justify-content: center;
-        border: 1px solid #e2e8f0; font-size: 20px;
+    .agent-card {
+        min-height: 100px;
     }
-    
-    /* 텍스트 스타일 */
-    .node-name { font-weight: 800; font-size: 14px; margin-bottom: 2px; color: #1e293b; }
-    .node-role { font-size: 11px; color: #64748b; }
 
-    /* 구글 차트 기본 선택 효과 제거 */
-    .google-visualization-orgchart-node { border: none !important; background: none !important; box-shadow: none !important; }
-    .google-visualization-orgchart-node-medium { font-size: 1em; }
+    .img-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #f1f5f9;
+        margin-bottom: 8px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #e2e8f0;
+        font-size: 20px;
+    }
+
+    /* 텍스트 스타일 */
+    .node-name {
+        font-weight: 800;
+        font-size: 14px;
+        margin-bottom: 2px;
+        color: #1e293b;
+    }
+
+    .node-role {
+        font-size: 11px;
+        color: #64748b;
+    }
+
+    /* 구글 차트 기본 선택/호버 효과 완전 제거 */
+    .google-visualization-orgchart-node,
+    .google-visualization-orgchart-nodesel,
+    .google-visualization-orgchart-node-over {
+        border: none !important;
+        background-color: transparent !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .google-visualization-orgchart-node-medium {
+        font-size: 1em;
+    }
 </style>
 
 <div class="org-container">
-    <div id="chart_div"></div>
+    <div class="d-flex align-items-center mb-4 gap-2">
+        <h2 class="fw-bold text-dark m-0">👥 조직도 보기</h2>
+    </div>
+    <div class="d-flex justify-content-center">
+        <div id="chart_div"></div>
+    </div>
 </div>
 
 <script type="text/javascript">
-    google.charts.load('current', {packages:["orgchart"]});
+    google.charts.load('current', { packages: ["orgchart"] });
     google.charts.setOnLoadCallback(drawChart);
 
     function drawChart() {
@@ -86,7 +135,7 @@
 
         // 차트 그리기
         var chart = new google.visualization.OrgChart(document.getElementById('chart_div'));
-        chart.draw(data, {'allowHtml':true, 'nodeClass': 'my-node'});
+        chart.draw(data, { 'allowHtml': true, 'nodeClass': 'my-node' });
     }
 </script>
 {% endblock %}

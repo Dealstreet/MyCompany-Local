@@ -1,0 +1,377 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block title %}계좌 관리{% endblock %}
+
+{% block content %}
+<style>
+    /* Standard Dashboard Styles */
+    .dashboard-container {
+        padding: 30px;
+        background-color: #f1f5f9;
+        min-height: 100vh;
+    }
+
+    .modern-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 30px;
+    }
+
+    .card-header-modern {
+        padding: 20px 25px;
+        border-bottom: 1px solid #f1f5f9;
+        font-weight: 700;
+        font-size: 16px;
+        color: #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    /* Table Styles */
+    .modern-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .modern-table th {
+        background: #f8fafc;
+        padding: 15px 20px;
+        text-align: left;
+        color: #64748b;
+        font-weight: 600;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .modern-table td {
+        padding: 15px 20px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #334155;
+        vertical-align: middle;
+    }
+
+    /* Button Styles - Explicit Visibility */
+    .btn-icon-text {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .btn-edit {
+        color: #475569;
+        background-color: #f1f5f9;
+        border-color: #e2e8f0;
+    }
+
+    .btn-edit:hover {
+        background-color: #e2e8f0;
+        color: #1e293b;
+    }
+
+    .btn-delete {
+        color: #ef4444;
+        background-color: #fef2f2;
+        border-color: #fee2e2;
+    }
+
+    .btn-delete:hover {
+        background-color: #fee2e2;
+        color: #dc2626;
+    }
+
+    /* Selected Row Style */
+    .selected-row {
+        background-color: #f0f9ff !important;
+        border-left: 4px solid #3b82f6;
+    }
+
+    .selected-row td:first-child {
+        padding-left: 16px !important;
+    }
+</style>
+
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark m-0">💳 계좌 관리</h2>
+            <p class="text-secondary m-0 mt-1" style="font-size: 14px;">보유하신 주식 계좌를 등록하고 포트폴리오를 확인하세요.</p>
+        </div>
+        <!-- Add Account Button -->
+        <button class="btn btn-primary d-flex align-items-center gap-2 fw-bold px-4 py-2"
+            style="border-radius: 10px; height: 45px;" data-bs-toggle="modal" data-bs-target="#createAccountModal">
+            <i class="fas fa-plus"></i> 새 계좌 등록
+        </button>
+    </div>
+
+    <!-- Account List (Table Layout) -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px; overflow: hidden;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4 py-3 text-secondary border-0" style="font-weight: 600;">별명 / 구분</th>
+                        <th class="py-3 text-secondary border-0" style="font-weight: 600;">금융기관</th>
+                        <th class="py-3 text-secondary border-0" style="font-weight: 600;">계좌번호</th>
+                        <th class="py-3 text-secondary border-0" style="font-weight: 600;">예금주</th>
+                        <th class="pe-4 py-3 text-secondary border-0 text-end" style="font-weight: 600; width: 180px;">
+                            관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr style="cursor: pointer;" onclick="loadPortfolio({{ account.id }}, this)"
+                        data-account-id="{{ account.id }}" class="account-row">
+
+                        <!-- Nickname & Default Badge -->
+                        <td class="ps-4 py-3">
+                            <div class="fw-bold text-dark">
+                                {% if account.nickname %}
+                                {{account.nickname}}
+                                {% else %}
+                                <span class="text-muted">별명 없음</span>
+                                {% endif %}
+                            </div>
+                            {% if account.is_default %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success mt-1">기본
+                                계좌</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Financial Institution -->
+                        <td class="py-3">
+                            <span class="badge bg-light text-secondary border"
+                                style="font-size: 13px; color: #333 !important;">
+                                {{account.financial_institution}}
+                            </span>
+                        </td>
+
+                        <!-- Account Number -->
+                        <td class="py-3">
+                            <span class="fw-bold text-dark" style="font-size: 15px; letter-spacing: 0.5px;">
+                                {{account.account_number}}
+                            </span>
+                        </td>
+
+                        <!-- Account Holder -->
+                        <td class="py-3">
+                            <div class="d-flex align-items-center">
+                                <span
+                                    class="d-inline-flex justify-content-center align-items-center rounded-circle bg-light me-2"
+                                    style="width: 24px; height: 24px;">
+                                    <i class="fas fa-user-circle text-secondary" style="font-size: 14px;"></i>
+                                </span>
+                                {{account.account_holder}}
+                            </div>
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="pe-4 py-3 text-end" onclick="event.stopPropagation();">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button type="button" class="btn-icon-text btn-edit"
+                                    onclick="openEditModal(event, {{ account.id }}, '{{ account.financial_institution|escapejs }}', '{{ account.account_number|escapejs }}', '{{ account.account_holder|escapejs }}', '{{ account.nickname|escapejs }}')">
+                                    <i class="fas fa-edit"></i> 수정
+                                </button>
+                                {% if not account.is_default %}
+                                <button type="button" class="btn-icon-text btn-delete"
+                                    onclick="confirmDelete(event, {{ account.id }})">
+                                    <i class="fas fa-trash-alt"></i> 삭제
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <div class="py-4">
+                                <span style="font-size: 40px;">💳</span> <br>
+                                등록된 계좌가 없습니다. 우측 상단 버튼을 눌러 계좌를 추가해주세요.
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. Collapsible Portfolio Section -->
+    <div id="portfolio-section" class="modern-card" style="display: none;">
+        <div class="card-header-modern">
+            <span class="d-flex align-items-center gap-2">
+                <i class="fas fa-chart-pie text-primary"></i>
+                <span id="portfolio-title">포트폴리오 상세</span>
+            </span>
+            <button type="button" class="btn-close" aria-label="Close" onclick="closePortfolio()"></button>
+        </div>
+        <div class="p-0" id="portfolio-content">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Account Modal -->
+<div class="modal fade" id="createAccountModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" action="{% url 'account_management' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold px-2 pt-2">새 계좌 등록</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">금융회사명</label>
+                        <input type="text" class="form-control" name="financial_institution" placeholder="예: 미래에셋증권"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">계좌번호</label>
+                        <input type="text" class="form-control" name="account_number" placeholder="123-45-67890"
+                            required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">예금주명</label>
+                        <input type="text" class="form-control" name="account_holder"
+                            value="{{ user.organization.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">계좌 별명 (선택)</label>
+                        <input type="text" class="form-control" name="nickname" placeholder="예: 메인 투자 계좌">
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 px-4 pb-4">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-primary px-4">등록하기</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Account Modal -->
+<div class="modal fade" id="editAccountModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" action="{% url 'account_management' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit">
+            <input type="hidden" name="account_id" id="edit-account-id">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-bottom-0 pb-0">
+                    <h5 class="modal-title fw-bold px-2 pt-2">계좌 정보 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">금융회사명</label>
+                        <input type="text" class="form-control" name="financial_institution" id="edit-fi" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">계좌번호</label>
+                        <input type="text" class="form-control" name="account_number" id="edit-an" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">예금주명</label>
+                        <input type="text" class="form-control" name="account_holder" id="edit-ah" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-secondary">계좌 별명</label>
+                        <input type="text" class="form-control" name="nickname" id="edit-nn">
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0 px-4 pb-4">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">취소</button>
+                    <button type="submit" class="btn btn-primary px-4">저장하기</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Form (Hidden) -->
+<form id="deleteForm" method="post" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="account_id" id="delete-account-id">
+</form>
+
+<script>
+    let currentAccountId = null;
+
+    function openEditModal(event, id, fi, an, ah, nn) {
+        if (event) event.stopPropagation();
+
+        document.getElementById('edit-account-id').value = id;
+        document.getElementById('edit-fi').value = fi;
+        document.getElementById('edit-an').value = an;
+        document.getElementById('edit-ah').value = ah;
+        document.getElementById('edit-nn').value = nn;
+
+        new bootstrap.Modal(document.getElementById('editAccountModal')).show();
+    }
+
+    function confirmDelete(event, id) {
+        if (event) event.stopPropagation();
+
+        if (confirm('정말 이 계좌를 삭제하시겠습니까? 연결된 거래 내역은 유지되지만 계좌 정보는 사라집니다.')) {
+            document.getElementById('delete-account-id').value = id;
+            document.getElementById('deleteForm').submit();
+        }
+    }
+
+    function loadPortfolio(accountId, rowElement) {
+        // Toggle if clicking same row
+        if (currentAccountId === accountId) {
+            // Optional logic
+        }
+
+        // UI Update: Highlight Selected Row
+        $('.account-row').removeClass('selected-row');
+        $(rowElement).addClass('selected-row');
+
+        currentAccountId = accountId;
+
+        // Show Section and Loading
+        $('#portfolio-section').slideDown(300);
+        $('#portfolio-content').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></div>');
+
+        // Scroll to section
+        $('html, body').animate({
+            scrollTop: $("#portfolio-section").offset().top - 100
+        }, 500);
+
+        // Fetch Data
+        $.get("{% url 'account_management' %}", {
+            action: 'get_portfolio',
+            account_id: accountId
+        }, function (data) {
+            $('#portfolio-content').html(data);
+        }).fail(function () {
+            $('#portfolio-content').html('<div class="alert alert-danger m-3">데이터를 불러오는데 실패했습니다.</div>');
+        });
+    }
+
+    function closePortfolio() {
+        $('#portfolio-section').slideUp(200);
+        $('.account-row').removeClass('selected-row');
+        currentAccountId = null;
+    }
+</script>
+{% endblock %}

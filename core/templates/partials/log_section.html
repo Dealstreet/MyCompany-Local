@@ -20,10 +20,12 @@
             {% for log in investment_logs %}
             <tr>
                 <td>
-                    {% if log.source == 'ai' %}
-                    <span class="badge bg-primary">🤖 AI</span>
-                    {% else %}
+                    {% if log.source == 'ceo' %}
+                    <span class="badge bg-primary">👑 CEO</span>
+                    {% elif log.source == 'sms' %}
                     <span class="badge bg-success">📱 문자</span>
+                    {% else %}
+                    <span class="badge bg-secondary">🤖 기타</span>
                     {% endif %}
                 </td>
                 <td class="text-secondary small">{{ log.approved_at|date:"y.m.d H:i" }}</td>
@@ -36,8 +38,20 @@
                 </td>
                 <td class="fw-bold">{{ log.stock_name|default:log.stock_code }}</td>
                 <td class="text-end fw-bold">{{ log.quantity|stringformat:"+d"|intcomma }}주</td> <!-- 부호 표시 -->
-                <td class="text-end">{{ log.avg_price|floatformat:0|intcomma }}원</td>
-                <td class="text-end text-dark">{{ log.total_amount|intcomma }}원</td>
+                <td class="text-end">
+                    {% if log.stock_obj.country == 'USA' %}
+                    ${{ log.avg_price|floatformat:2|intcomma }}
+                    {% else %}
+                    {{ log.avg_price|floatformat:0|intcomma }}원
+                    {% endif %}
+                </td>
+                <td class="text-end text-dark">
+                    {% if log.stock_obj.country == 'USA' %}
+                    ${{ log.total_amount|floatformat:2|intcomma }}
+                    {% else %}
+                    {{ log.total_amount|intcomma }}원
+                    {% endif %}
+                </td>
             </tr>
             {% empty %}
             <tr>

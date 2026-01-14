@@ -27,12 +27,16 @@ urlpatterns = [
     
     # 3-1. 재무 관리
     path('finance/', views.financial_management, name='financial_management'),
-    path('finance/cash-op/', views.cash_operation, name='cash_operation'), # [추가] 입출금 UI Action
+    path('finance/cash-op/', views.cash_operation, name='cash_operation'),
+
+    # 3-2. 계좌 관리
+    path('account/', views.account_management, name='account_management'),
 
     # 4. 결재 관련 (작성, 목록, 상세)
     # approval_detail에서 투자 로그(InvestmentLog) 연동 처리
 
     path('approval/list/', views.approval_list, name='approval_list'),
+    path('approval/create/', views.create_self_approval, name='create_self_approval'),
     path('approval/detail/<int:pk>/', views.approval_detail, name='approval_detail'),
 
     # 5. 조직도
@@ -48,6 +52,10 @@ urlpatterns = [
     path('stock/delete/<int:stock_id>/', views.delete_interest_stock, name='delete_interest_stock'),
     path('stock/detail/', views.get_stock_detail, name='get_stock_detail'),
     path('stock/search/', views.search_stock_api, name='search_stock_api'),
+    path('stock/update-order/', views.update_stock_ordering, name='update_stock_ordering'),
+
+    # [New] Trade Notifications
+    path('notifications/', views.trade_notification_list, name='trade_notification_list'),
 ]
 
 # 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정

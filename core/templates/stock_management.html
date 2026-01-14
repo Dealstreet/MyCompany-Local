@@ -2,6 +2,7 @@
 {% load humanize %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
     .dashboard-container {
         padding: 30px;
@@ -79,6 +80,24 @@
 <div class="dashboard-container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold text-dark m-0">📊 종목 관리</h2>
+        <button id="toggleOrderBtn" class="btn btn-outline-secondary btn-sm rounded-pill px-3"
+            onclick="toggleOrderMode()">
+            <i class="fas fa-sort me-1"></i> 순서 변경
+        </button>
+        <div id="saveOrderControls" class="d-none align-items-center">
+            <span class="text-primary fw-bold me-3 small"><i class="fas fa-check-circle"></i> 자동 저장 됨</span>
+            <div class="btn-group me-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="moveSelectedRow('top')" title="맨 위로"><i
+                        class="fas fa-angle-double-up"></i></button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="moveSelectedRow('up')" title="위로"><i
+                        class="fas fa-chevron-up"></i></button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="moveSelectedRow('down')" title="아래로"><i
+                        class="fas fa-chevron-down"></i></button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="moveSelectedRow('bottom')" title="맨 아래로"><i
+                        class="fas fa-angle-double-down"></i></button>
+            </div>
+            <button class="btn btn-outline-primary btn-sm rounded-pill px-3" onclick="toggleOrderMode()">완료</button>
+        </div>
     </div>
 
     <!-- Search & Add (Autocomplete) -->
@@ -109,18 +128,60 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="bg-light">
                     <tr>
-                        <th class="ps-4 py-3 text-secondary border-0" style="font-weight: 600;">종목명</th>
-                        <th class="py-3 text-secondary border-0" style="font-weight: 600;">현재가</th>
-                        <th class="py-3 text-secondary border-0 text-center" style="font-weight: 600;">국가</th>
+                        <th class="ps-4 py-3 text-secondary border-0 drag-col d-none" style="width: 50px;"></th>
+                        <!-- Drag Handle Col -->
+                        <th class="ps-4 py-3 text-secondary border-0" style="font-weight: 600;">
+                            <a href="?sort=name&direction={% if current_sort == 'name' and current_direction == 'asc' %}desc{% elif current_sort == 'name' and current_direction == 'desc' %}{% else %}asc{% endif %}"
+                                class="text-decoration-none {% if current_sort == 'name' %}text-primary fw-bold{% else %}text-secondary{% endif %}">
+                                종목명
+                                {% if current_sort == 'name' %}
+                                {% if current_direction == 'asc' %}▲{% else %}▼{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="py-3 text-secondary border-0" style="font-weight: 600;">
+                            <a href="?sort=price&direction={% if current_sort == 'price' and current_direction == 'asc' %}desc{% elif current_sort == 'price' and current_direction == 'desc' %}{% else %}asc{% endif %}"
+                                class="text-decoration-none {% if current_sort == 'price' %}text-primary fw-bold{% else %}text-secondary{% endif %}">
+                                현재가
+                                {% if current_sort == 'price' %}
+                                {% if current_direction == 'asc' %}▲{% else %}▼{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
+                        <th class="py-3 text-secondary border-0 text-center" style="font-weight: 600;">
+                            <a href="?sort=country&direction={% if current_sort == 'country' and current_direction == 'asc' %}desc{% elif current_sort == 'country' and current_direction == 'desc' %}{% else %}asc{% endif %}"
+                                class="text-decoration-none {% if current_sort == 'country' %}text-primary fw-bold{% else %}text-secondary{% endif %}">
+                                국가
+                                {% if current_sort == 'country' %}
+                                {% if current_direction == 'asc' %}▲{% else %}▼{% endif %}
+                                {% endif %}
+                            </a>
+                        </th>
                         <th class="pe-4 py-3 text-secondary border-0 text-end" style="font-weight: 600;">관리</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="stockTableBody" hx-post="{% url 'update_stock_ordering' %}" hx-trigger="newOrder"
+                    hx-target="this" hx-swap="none" hx-include="#stockTableBody input">
                     {% for stock in stocks %}
-                    <tr style="cursor: pointer;" onclick="openStockDetail({{ stock.id }})">
+                    <tr style="cursor: pointer;" onclick="openStockDetail({{ stock.id }})" data-id="{{ stock.id }}">
+                        <!-- Drag Handle -->
+                        <td class="ps-4 py-3 text-center drag-col d-none" onclick="event.stopPropagation();">
+                            <input type="hidden" name="order" value="{{ stock.id }}">
+                            <i class="fas fa-bars drag-handle"></i>
+                        </td>
+
                         <!-- Name & Code -->
                         <td class="ps-4 py-3">
-                            <div class="fw-bold text-dark">{{ stock.name }}</div>
+                            <div class="fw-bold text-dark">
+                                {% if stock.is_held %}
+                                <i class="fas fa-circle text-success me-1"
+                                    style="font-size: 8px; vertical-align: middle;"></i>
+                                {% else %}
+                                <i class="fas fa-circle text-warning me-1"
+                                    style="font-size: 8px; vertical-align: middle;"></i>
+                                {% endif %}
+                                {{ stock.name }}
+                            </div>
                             <div class="text-secondary small">{{ stock.code }}</div>
                         </td>
 
@@ -137,11 +198,7 @@
 
                         <!-- Country Badge -->
                         <td class="py-3 text-center">
-                            {% if stock.code|slice:":1" == "0" or stock.code|slice:":1" == "1" %}
-                            <span class="badge bg-light text-dark border">한국</span>
-                            {% else %}
-                            <span class="badge bg-light text-dark border">미국</span>
-                            {% endif %}
+                            <span class="badge bg-light text-dark border">{{ stock.country|default:"미국" }}</span>
                         </td>
 
                         <!-- Delete Action -->
@@ -233,8 +290,16 @@
 
 <script>
     let chart = null;
+    let isOrderMode = false;
+    let selectedRow = null; // [NEW] Track selected row
 
     function openStockDetail(stockId) {
+        // [NEW] Check flag & Handle Selection
+        if (isOrderMode) {
+            handleRowSelection(stockId);
+            return;
+        }
+
         // Show Modal
         const modal = new bootstrap.Modal(document.getElementById('stockDetailModal'));
         modal.show();
@@ -391,7 +456,108 @@
         color: #64748b;
         margin-left: 8px;
     }
+
+    /* Order Mode Selection */
+    .selected-row {
+        background-color: #fef9c3 !important;
+        /* Light Yellow */
+        border: 2px solid #f59e0b;
+    }
 </style>
+
+<!-- SortableJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<!-- HTMX -->
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+<script>
+    let sortableInstance = null;
+
+    function toggleOrderMode() {
+        const tbody = document.getElementById('stockTableBody');
+        const btn = document.getElementById('toggleOrderBtn');
+        const controls = document.getElementById('saveOrderControls');
+        const dragCols = document.querySelectorAll('.drag-col');
+
+        if (isOrderMode) {
+            // Disable Mode (Click 'Done')
+            isOrderMode = false;
+            selectedRow = null;
+            btn.classList.remove('d-none');
+            controls.classList.add('d-none');
+            dragCols.forEach(col => col.classList.add('d-none'));
+            document.querySelectorAll('.selected-row').forEach(row => row.classList.remove('selected-row'));
+
+            // Reload to clear state (cleanest way to exit "edit mode" visually)
+            location.reload();
+        } else {
+            // Enable Mode
+            isOrderMode = true;
+            btn.classList.add('d-none');
+            controls.classList.remove('d-none');
+            dragCols.forEach(col => col.classList.remove('d-none'));
+
+            // Init Sortable with Event Trigger
+            if (tbody && !sortableInstance) {
+                sortableInstance = new Sortable(tbody, {
+                    animation: 150,
+                    handle: '.drag-handle',
+                    ghostClass: 'sortable-ghost',
+                    onEnd: function () {
+                        // Trigger HTMX request
+                        tbody.dispatchEvent(new Event('newOrder'));
+                    }
+                });
+            }
+        }
+    }
+
+    function cancelOrderMode() {
+        location.reload();
+    }
+
+    function handleRowSelection(stockId) {
+        const row = document.querySelector(`tr[data-id="${stockId}"]`);
+        if (!row) return;
+
+        if (selectedRow === row) {
+            selectedRow.classList.remove('selected-row');
+            selectedRow = null;
+        } else {
+            if (selectedRow) selectedRow.classList.remove('selected-row');
+            selectedRow = row;
+            selectedRow.classList.add('selected-row');
+        }
+    }
+
+    function moveSelectedRow(direction) {
+        if (!selectedRow) {
+            alert('이동할 종목을 먼저 선택해주세요.');
+            return;
+        }
+
+        const tbody = document.getElementById('stockTableBody');
+        let changed = false;
+
+        if (direction === 'up') {
+            const prev = selectedRow.previousElementSibling;
+            if (prev) { tbody.insertBefore(selectedRow, prev); changed = true; }
+        } else if (direction === 'down') {
+            const next = selectedRow.nextElementSibling;
+            if (next) { tbody.insertBefore(next, selectedRow); changed = true; }
+        } else if (direction === 'top') {
+            tbody.prepend(selectedRow); changed = true;
+        } else if (direction === 'bottom') {
+            tbody.append(selectedRow); changed = true;
+        }
+
+        selectedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        if (changed) {
+            // Trigger HTMX request
+            tbody.dispatchEvent(new Event('newOrder'));
+        }
+    }
+</script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {

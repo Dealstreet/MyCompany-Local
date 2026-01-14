@@ -13,7 +13,7 @@
                 <th width="20%" class="text-end">총 매수금액</th>
                 <th width="15%" class="text-end" style="color:#2563eb;">현재가</th>
                 <th width="15%" class="text-end" style="color:#2563eb;">평가금액</th>
-                <th width="10%" class="text-end">승인일자</th>
+                <th width="10%" class="text-end">수익률</th>
             </tr>
         </thead>
         <tbody>
@@ -21,11 +21,38 @@
             <tr>
                 <td><span class="stock-badge">{{ item.stock_name|default:item.stock_code }}</span></td>
                 <td class="text-end fw-bold">{{ item.quantity|intcomma }}주</td>
-                <td class="text-end">{{ item.avg_price|floatformat:0|intcomma }}원</td>
-                <td class="text-end fw-bold text-dark">{{ item.total_amount|intcomma }}원</td>
-                <td class="text-end fw-bold text-primary">{{ item.current_price|floatformat:0|intcomma }}원</td>
-                <td class="text-end fw-bold text-primary">{{ item.eval_amount|floatformat:0|intcomma }}원</td>
-                <td class="text-end text-secondary small">{{ item.approved_at|date:"y.m.d" }}</td>
+                <td class="text-end">
+                    {% if item.stock.country == 'USA' %}
+                    ${{ item.avg_price|floatformat:2|intcomma }}
+                    {% else %}
+                    {{ item.avg_price|floatformat:0|intcomma }}원
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold text-dark">
+                    {% if item.stock.country == 'USA' %}
+                    ${{ item.total_amount|floatformat:2|intcomma }}
+                    {% else %}
+                    {{ item.total_amount|intcomma }}원
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold text-primary">
+                    {% if item.stock.country == 'USA' %}
+                    ${{ item.current_price|floatformat:2|intcomma }}
+                    {% else %}
+                    {{ item.current_price|floatformat:0|intcomma }}원
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold text-primary">
+                    {% if item.stock.country == 'USA' %}
+                    ${{ item.eval_amount|floatformat:2|intcomma }}
+                    {% else %}
+                    {{ item.eval_amount|floatformat:0|intcomma }}원
+                    {% endif %}
+                </td>
+                <td
+                    class="text-end fw-bold {% if item.yield > 0 %}text-danger{% elif item.yield < 0 %}text-primary{% else %}text-secondary{% endif %}">
+                    {{ item.yield|floatformat:1 }}%
+                </td>
             </tr>
             {% empty %}
             <tr>

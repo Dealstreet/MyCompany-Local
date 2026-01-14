@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User, Organization, Agent, Task, Approval, ApprovalLine, Message, Stock, UserProfile, InvestmentLog, Department, Transaction
+from .models import User, Organization, Agent, Task, Approval, ApprovalLine, Message, Stock, UserProfile, InvestmentLog, Department, Transaction, Account, TradeNotification
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -38,11 +38,19 @@ class ApprovalAdmin(admin.ModelAdmin):
     search_fields = ('title', 'content')
     inlines = [ApprovalLineInline]
 
+class StockInline(admin.TabularInline):
+    model = Stock
+    fields = ('name', 'code', 'current_price', 'country')
+    readonly_fields = ('current_price', 'country')
+    extra = 0
+    can_delete = False
+    show_change_link = True
+
 # 4. AI 직원(Agent) 관리 - [수정] profile_image 필드 추가
 @admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
     # 목록에서 보여줄 항목: 사진 필드(profile_image)를 추가했습니다.
-    list_display = ('name', 'department_obj', 'position', 'role', 'stock', 'model_name')
+    list_display = ('name', 'department_obj', 'position', 'role', 'model_name')
     
     # 우측 필터 사이드바
     list_filter = ('organization', 'department_obj', 'position', 'model_name')
@@ -51,14 +59,16 @@ class AgentAdmin(admin.ModelAdmin):
     search_fields = ('name', 'department_obj__name', 'role')
 
     # 자동 완성 필드 (ForeignKey 검색용)
-    autocomplete_fields = ['stock']
+    # autocomplete_fields = ['stock'] # Removed
     
     # 상세 페이지 설정: '기본 정보' 섹션에 'profile_image'를 추가하여 사진 업로드가 가능하게 했습니다.
     fieldsets = (
         ('기본 정보', {'fields': ('organization', 'name', 'department_obj', 'position', 'profile_image')}),
-        ('담당 업무 및 분석 대상', {'fields': ('role', 'stock')}),
+        ('담당 업무', {'fields': ('role',)}),
         ('AI 엔진 설정', {'fields': ('model_name', 'persona')}),
     )
+    
+    inlines = [StockInline]
 
     class Media:
         js = ('admin/js/agent_admin.js',)
@@ -82,8 +92,10 @@ admin.site.register(Approval, ApprovalAdmin)
 
 @admin.register(Stock)
 class StockAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'get_current_price', 'get_high_52w', 'get_low_52w', 'updated_at')
+    list_display = ('name', 'code', 'agent', 'get_current_price', 'get_high_52w', 'get_low_52w', 'updated_at')
+    list_editable = ('agent',)
     search_fields = ('name', 'code')
+    list_filter = ('agent', 'country')
     actions = ['update_stock_data']
 
     def _format_price(self, obj, value):
@@ -129,3 +141,18 @@ class DepartmentAdmin(admin.ModelAdmin):
     list_display = ('name', 'parent', 'organization')
     list_filter = ('organization', 'parent')
 
+@admin.register(Account)
+class AccountAdmin(admin.ModelAdmin):
+    list_display = ('organization', 'financial_institution', 'account_number', 'account_holder', 'is_default')
+    list_filter = ('organization', 'is_default')
+    search_fields = ('financial_institution', 'account_number', 'nickname')
+
+
+
+@admin.register(TradeNotification)
+class TradeNotificationAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'stock_name', 'trade_type', 'amount', 'is_parsed', 'organization')
+    list_filter = ('trade_type', 'is_parsed', 'organization', 'created_at')
+    search_fields = ('content', 'stock_name', 'stock_code')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at',)

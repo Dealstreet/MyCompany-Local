@@ -10,6 +10,25 @@
         min-height: 100vh;
     }
 
+    /* Badge Style from Approval List */
+    .status-badge {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 80px;
+        justify-content: center;
+    }
+
+    .status-pending {
+        background-color: #fff7ed;
+        color: #ea580c;
+        border: 1px solid #ffedd5;
+    }
+
     /* 1.1. 메인 래퍼 스크롤 활성화 (base.html 오버라이드) */
     .main-wrapper {
         overflow-y: auto !important;
@@ -209,30 +228,57 @@
             flex-direction: column;
         }
     }
+
+    /* Input with Dynamic Suffix */
+    .input-group-relative {
+        position: relative;
+        width: 100%;
+    }
+
+    .currency-suffix {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #64748b;
+        font-weight: 600;
+        font-size: 14px;
+        pointer-events: none;
+    }
+
+    .input-field.has-suffix {
+        padding-right: 45px;
+        /* Make room for suffix */
+        text-align: right;
+        /* Request: Right align input text */
+    }
+
+    .text-orange {
+        color: #fd7e14 !important;
+    }
 </style>
 
 <div class="dashboard-container">
 
     <div class="d-flex align-items-center mb-4 gap-2">
-        <h2 class="fw-bold text-dark m-0">⚡ 투자 자산 운용</h2>
+        <h2 class="fw-bold text-dark m-0">📈 투자 관리</h2>
     </div>
 
     <div class="summary-row">
-        <div class="stat-card">
-            <div class="stat-label">💰 총 투자 원금</div>
-            <div class="stat-value">{{ summary.principal|intcomma }}원</div>
-        </div>
+        <!-- [Removed] Total Principal Card -->
+
         <div class="stat-card">
             <div class="stat-label">📥 총 매수금액</div>
             <div class="stat-value text-primary">{{ summary.total_buy|intcomma }}원</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">📤 총 매도금액</div>
-            <div class="stat-value text-secondary">{{ summary.total_sell|intcomma }}원</div>
+            <div class="stat-value text-danger">{{ summary.total_sell|intcomma }}원</div>
         </div>
         <div class="stat-card">
-            <div class="stat-label">📊 현재 평가잔액</div>
-            <div class="stat-value">{{ summary.eval_balance|intcomma }}원</div>
+            <div class="stat-label">📊 현재 평가금액</div>
+            <!-- Apply yield color to reflect profit status -->
+            <div class="stat-value {{ summary.yield_color }}">{{ summary.eval_balance|intcomma }}원</div>
         </div>
         <div class="stat-card">
             <div class="stat-label">📈 총 수익률</div>
@@ -246,39 +292,58 @@
             <div class="modern-card">
                 <div class="card-header-modern">
                     <span>🚀 CEO 직접 주문 지시</span>
-                    <span style="font-size:12px; color:#ef4444;">● Live Trading</span>
+
                 </div>
                 <div class="order-form-container">
                     <form method="post">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="create_draft">
 
-                        <div class="mb-3">
+                        <div class="mb-3" id="stockNameContainer">
                             <label class="input-label">종목명</label>
                             <select name="stock_name" id="stockNameSelect" class="input-field" required>
                                 <option value="" disabled selected>종목 선택</option>
                                 {% for stock in all_stocks %}
-                                <option value="{{ stock.name }}" data-price="{{ stock.current_price|default:0 }}">{{
-                                    stock.name }} ({{ stock.code }})</option>
+                                <option value="{{ stock.name }}" data-price="{{ stock.current_price|default:0 }}"
+                                    data-country="{{ stock.country }}"
+                                    data-is-korean="{{ stock.is_korean|yesno:'true,false' }}">
+                                    {{ stock.name }} ({{ stock.code }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="input-label">출금 계좌</label>
+                            <select name="account_id" class="input-field" required>
+                                <option value="" disabled selected>계좌 선택</option>
+                                {% for acc in accounts %}
+                                <option value="{{ acc.id }}">{{ acc.display_label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
 
                         <div class="row">
                             <div class="col-4">
-                                <label class="input-label">매수 단가</label>
-                                <input type="number" name="buy_price" id="buyPrice" class="input-field" placeholder="0"
-                                    required>
+                                <label class="input-label" id="labelPrice">매수 단가</label>
+                                <div class="input-group-relative">
+                                    <input type="text" name="buy_price" id="buyPrice" class="input-field has-suffix"
+                                        placeholder="0" required>
+                                    <span class="currency-suffix" id="suffixPrice">원</span>
+                                </div>
                             </div>
                             <div class="col-4">
                                 <label class="input-label">수량 (주)</label>
                                 <input type="number" name="quantity" id="buyQuantity" class="input-field"
-                                    placeholder="0" required>
+                                    placeholder="0" style="text-align: right;" required>
                             </div>
                             <div class="col-4">
-                                <label class="input-label">총 매수금액</label>
-                                <input type="number" name="total_amount" id="buyTotal" class="input-field"
-                                    placeholder="0" required>
+                                <label class="input-label" id="labelTotal">총 매수금액</label>
+                                <div class="input-group-relative">
+                                    <input type="text" name="total_amount" id="buyTotal" class="input-field has-suffix"
+                                        placeholder="0" required>
+                                    <span class="currency-suffix" id="suffixTotal">원</span>
+                                </div>
                             </div>
                         </div>
 
@@ -288,38 +353,136 @@
                                 const priceInput = document.getElementById('buyPrice');
                                 const qtyInput = document.getElementById('buyQuantity');
                                 const totalInput = document.getElementById('buyTotal');
+                                const suffixPrice = document.getElementById('suffixPrice');
+                                const suffixTotal = document.getElementById('suffixTotal');
+                                const form = document.querySelector('form');
+
+                                function getIsKorean() {
+                                    if (stockSelect.selectedIndex === -1) return 'true'; // Default to Won
+                                    return stockSelect.options[stockSelect.selectedIndex].getAttribute('data-is-korean');
+                                }
+
+                                function updateCurrency() {
+                                    const isKorean = getIsKorean();
+
+                                    if (isKorean === 'false') {
+                                        suffixPrice.innerText = '달러';
+                                        suffixTotal.innerText = '달러';
+                                    } else {
+                                        suffixPrice.innerText = '원';
+                                        suffixTotal.innerText = '원';
+                                    }
+                                }
+
+                                // Helper: Add commas
+                                function formatNumber(num) {
+                                    if (!num) return '';
+                                    // Split decimal if exists
+                                    let parts = num.toString().split('.');
+                                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                                    return parts.join('.');
+                                }
+
+                                // Helper: Remove commas and return number
+                                function parseNumber(str) {
+                                    if (!str) return 0;
+                                    return Number(str.toString().replace(/,/g, ''));
+                                }
+
+                                // Helper: Format input value
+                                function formatInput(input) {
+                                    let val = input.value.replace(/,/g, '');
+                                    if (!isNaN(val)) {
+                                        input.value = formatNumber(val);
+                                    }
+                                }
 
                                 // Stock Selected -> Auto-fill Price
                                 stockSelect.addEventListener('change', function () {
                                     const selectedOption = this.options[this.selectedIndex];
                                     const price = selectedOption.getAttribute('data-price');
+
+                                    updateCurrency();
+
                                     if (price) {
-                                        priceInput.value = Math.floor(Number(price));
-                                        updateTotal(); // Recalculate if qty exists
+                                        const isKorean = selectedOption.getAttribute('data-is-korean');
+                                        if (isKorean === 'false') {
+                                            priceInput.value = formatNumber(Number(price).toFixed(2));
+                                        } else {
+                                            priceInput.value = formatNumber(Math.floor(Number(price)));
+                                        }
+                                        updateTotal();
                                     }
                                 });
 
                                 // Price or Qty Changed -> Update Total
                                 function updateTotal() {
-                                    const p = Number(priceInput.value);
+                                    const p = parseNumber(priceInput.value);
                                     const q = Number(qtyInput.value);
+                                    const isKorean = getIsKorean();
+
                                     if (p && q) {
-                                        totalInput.value = Math.floor(p * q);
+                                        let total;
+                                        if (isKorean === 'false') {
+                                            total = (p * q).toFixed(2);
+                                        } else {
+                                            total = Math.floor(p * q);
+                                        }
+                                        totalInput.value = formatNumber(total);
                                     }
                                 }
 
-                                // Total Changed -> Update Qty (keep Price fixed)
+                                // Total Changed -> Update Qty
                                 function updateQty() {
-                                    const t = Number(totalInput.value);
-                                    const p = Number(priceInput.value);
+                                    const t = parseNumber(totalInput.value);
+                                    const p = parseNumber(priceInput.value);
                                     if (t && p) {
                                         qtyInput.value = Math.floor(t / p);
                                     }
                                 }
 
-                                priceInput.addEventListener('input', updateTotal);
+                                priceInput.addEventListener('input', function () {
+                                    // Allow typing decimals for US stocks
+                                    if (this.value.endsWith('.')) return;
+                                    formatInput(this);
+                                    updateTotal();
+                                });
+
                                 qtyInput.addEventListener('input', updateTotal);
-                                totalInput.addEventListener('input', updateQty);
+
+                                totalInput.addEventListener('input', function () {
+                                    // Allow typing decimals
+                                    if (this.value.endsWith('.')) return;
+                                    formatInput(this);
+                                    updateQty();
+                                });
+
+                                // Form Submit: Validation & Remove commas
+                                form.addEventListener('submit', function (e) {
+                                    const accountSelect = document.querySelector('select[name="account_id"]');
+                                    let missing = [];
+
+                                    if (!stockSelect.value) missing.push("종목명");
+                                    if (!accountSelect.value) missing.push("출금 계좌");
+                                    if (!priceInput.value) missing.push("매수 단가");
+                                    if (!qtyInput.value) missing.push("수량");
+                                    if (!totalInput.value) missing.push("총 매수금액");
+
+                                    if (missing.length > 0) {
+                                        e.preventDefault();
+                                        alert("다음 항목이 입력되지 않았습니다:\n" + missing.join(", "));
+                                        return;
+                                    }
+
+                                    // Remove commas before sending
+                                    priceInput.value = priceInput.value.replace(/,/g, '');
+                                    totalInput.value = totalInput.value.replace(/,/g, '');
+                                });
+
+                                // Initialize
+                                if (stockSelect.value) {
+                                    updateCurrency();
+                                }
                             });
                         </script>
 
@@ -337,17 +500,16 @@
                 <div class="draft-list-container">
                     {% for draft in drafts %}
                     <div class="draft-item">
-                        <div>
-                            <div style="font-weight:700; color:#1e293b;">{{ draft.stock_code }}</div>
-                            <div style="font-size:12px; color:#64748b;">{{ draft.avg_price|intcomma }}원 / {{
-                                draft.org.name }}</div>
-                        </div>
-                        <form method="post">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="approve">
-                            <input type="hidden" name="log_id" value="{{ draft.id }}">
-                            <button class="btn-approve-sm">승인</button>
-                        </form>
+                        <a href="{% url 'approval_detail' draft.id %}"
+                            style="text-decoration: none; color: inherit; flex-grow: 1;">
+                            <div>
+                                <div style="font-weight:700; color:#1e293b;">{{ draft.title }}</div>
+                                <div style="font-size:12px; color:#64748b;">
+                                    {{ draft.temp_stock_name }} | {{ draft.temp_total_amount|intcomma }}원
+                                </div>
+                            </div>
+                        </a>
+                        <div class="status-badge status-pending" style="margin-left: 10px;">⏳ 결재 대기</div>
                     </div>
                     {% empty %}
                     <div style="padding: 40px; text-align: center; color:#94a3b8; font-size:13px;">

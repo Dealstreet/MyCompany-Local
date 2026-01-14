@@ -1,0 +1,59 @@
+{% load humanize %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" style="font-size: 0.95rem;">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 40%">종목명</th>
+                <th class="text-end" style="width: 15%">보유수량</th>
+                <th class="text-end" style="width: 15%">매수금액</th>
+                <th class="text-end" style="width: 15%">평가금액</th>
+                <th class="text-end" style="width: 15%">수익률</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in portfolio %}
+            <tr>
+                <td>
+                    <div class="fw-bold">{{ item.stock_name }}</div>
+                    <div class="text-muted small">{{ item.stock_code }}</div>
+                </td>
+                <td class="text-end">{{ item.quantity|intcomma }}주</td>
+                <td class="text-end">{{ item.total_amount|floatformat:0|intcomma }}원</td>
+                <td class="text-end">
+                    <div class="fw-bold">{{ item.eval_amount|floatformat:0|intcomma }}원</div>
+                    <div class="text-muted small">현재가: {{ item.current_price|floatformat:0|intcomma }}원</div>
+                </td>
+                <td class="text-end">
+                    <span
+                        class="badge {% if item.yield > 0 %}bg-danger{% elif item.yield < 0 %}bg-primary{% else %}bg-secondary{% endif %}">
+                        {{ item.yield|floatformat:2 }}%
+                    </span>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center py-4 text-muted">
+                    이 계좌에 보유 중인 종목이 없습니다.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if portfolio %}
+        <tfoot class="table-light">
+            <tr class="fw-bold">
+                <td class="text-center">합계</td>
+                <td class="text-end">-</td>
+                <td class="text-end">
+                    {# Simple template sum is hard, backend logic handles aggregation usually but we display item wise
+                    here #}
+                    {# We could pass totals in context, but for now simple listing is requested #}
+                    -
+                </td>
+                <td class="text-end">-</td>
+                <td class="text-end">-</td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+</div>

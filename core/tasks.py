@@ -30,6 +30,8 @@ def safe_parse_int(pattern, text, default=0):
             return default
     return default
 
+from .utils import format_approval_content, get_agent_by_stock
+
 @shared_task
 def create_approval_draft(prompt, agent_id, user_id, org_id, temp_msg_id):
     try:
@@ -51,22 +53,22 @@ def create_approval_draft(prompt, agent_id, user_id, org_id, temp_msg_id):
         # 3. AI 분석 (GPT-5 Nano 페르소나)
         system_msg = f"""
         당신은 {org.name} {agent.department} 소속 투자 전문가 {agent.name} {agent.position}입니다.
-        사용자의 지시를 바탕으로 '행정안전부 공문서 표준 서식'에 맞춘 전문적인 기안문 본문을 작성하세요.
+        사용자의 지시를 바탕으로 '주식 매매 체결 결과 보고서'의 '비고' 란에 들어갈 전문적인 의견을 작성하세요.
         
         [작성 규칙]
-        - 말투: "~하였습니다", "~바랍니다" 등 격식체 사용.
-        - 내용: {prompt}에 포함된 데이터를 바탕으로 매수 사유, 성과 원인, 시장 전망 등을 전문가 관점에서 풍성하게 서술.
-        - 항목 구분: 1. 가. 1) 가) 순서 준수.
+        - 말투: "~함", "~임" 등의 개조식 혹은 "~하였습니다" 등의 격식체 (비고 란에 적합하게 공문서 스타일로 자율 선택).
+        - 내용: {prompt}에 포함된 데이터를 바탕으로 매수 사유, 성과 원인, 시장 전망, 향후 운용 계획 등을 전문가 관점에서 1-2줄로 핵심 요약 서술.
+        - 언어: 반드시 '한국어(Korean)'로 작성할 것.
         """
 
         response = client.chat.completions.create(
             model='gpt-5-nano', 
             messages=[
                 {"role": "system", "content": system_msg},
-                {"role": "user", "content": f"다음 지시를 바탕으로 공문서 본문을 작성하라: {prompt}"}
+                {"role": "user", "content": f"다음 지시를 분석하여 보고서 비고에 들어갈 내용을 작성하라: {prompt}"}
             ]
         )
-        ai_analysis = response.choices[0].message.content
+        ai_reason = response.choices[0].message.content
 
         # 4. 데이터 파싱 (분리된 함수 사용으로 안전성 확보)
         
@@ -84,17 +86,57 @@ def create_approval_draft(prompt, agent_id, user_id, org_id, temp_msg_id):
         if not date_str:
             date_str = safe_parse_str(r'거래일:\s*([\d-]+)', prompt)
 
+        # [NEW] Generate Standard Content via Utility
+        # Need stock name if possible. Code is `stock` (parsed).
+        # Try to lookup stock name from DB if `stock` looks like a code, or if it is a name?
+        # Safe parse just grabbed specific pattern `종목:...`
+        
+        stock_name = stock # Default fallback
+        stock_code_val = stock
+        
+        # Try to resolve Name/Code using DB and Find Agent
+        found_agent = get_agent_by_stock(stock_name, stock_code_val)
+        
+        # If agent found, switch to that agent.
+        # [UPDATED] If NOT found, set as None (Unassigned) - Do NOT fallback to chat agent for the 'drafter' role
+        final_agent = None
+        if found_agent:
+            final_agent = found_agent
+            # Update stock name/code from agent's stock if available (for better accuracy)
+            if final_agent.stock:
+                 stock_name = final_agent.stock.name
+                 stock_code_val = final_agent.stock.code
+        else:
+             # Just try to find stock obj info if available
+             stock_obj = Stock.objects.filter(code=stock).first()
+             if not stock_obj:
+                  stock_obj = Stock.objects.filter(name=stock).first()
+             if stock_obj:
+                 stock_name = stock_obj.name
+                 stock_code_val = stock_obj.code
+
+        formatted_content = format_approval_content(
+            stock_name=stock_name,
+            stock_code=stock_code_val,
+            quantity=qty,
+            price=int(amt/qty) if qty > 0 else 0,
+            total_amount=amt,
+            trade_type=report_type if report_type in ['buy', 'sell'] else 'buy', # Default to buy if unknown
+            reason=ai_reason,
+            include_attachment=True # AI drafts might act like SMS or internal? User said "Using this template... make them write". I'll assume standard form includes attachment unless CEO.
+        )
+
         # 5. 결재 문서 생성
         approval = Approval.objects.create(
             organization=org,
-            agent=agent,
+            agent=final_agent,
             report_type=report_type,
-            temp_stock_code=stock,
+            temp_stock_code=stock_code_val,
             temp_quantity=qty,
             temp_total_amount=amt,
             temp_date=date_str, 
-            title=f"[{dict(Approval.REPORT_TYPES).get(report_type, '일반')}] {stock if stock else '보고'} 건",
-            content=ai_analysis,
+            title=f"[{dict(Approval.REPORT_TYPES).get(report_type, '일반')}] {stock_name} 체결 결과 보고", # Adjusted title
+            content=formatted_content,
             status='pending'
         )
 

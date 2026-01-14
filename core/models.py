@@ -63,7 +63,7 @@ class Agent(models.Model):
     department_obj = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='agents', verbose_name="소속 부서 (연동)")
     position = models.CharField(max_length=50, default='실장', verbose_name="직급")
     role = models.CharField(max_length=100, verbose_name="담당 업무")
-    stock = models.ForeignKey('Stock', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="관리 종목")
+    role = models.CharField(max_length=100, verbose_name="담당 업무")
     persona = models.TextField(verbose_name="프롬프트(페르소나)")
     model_name = models.CharField(max_length=50, default='gpt-5-nano', verbose_name="사용 모델")
     profile_image = models.ImageField(upload_to='agents/', null=True, blank=True, verbose_name="프로필 이미지")
@@ -89,8 +89,8 @@ class InvestmentLog(models.Model):
     agent = models.ForeignKey(Agent, on_delete=models.CASCADE, null=True, blank=True, verbose_name="담당 AI 직원")
     
     # [신규] 출처 및 사용자
-    SOURCE_CHOICES = [('ai', '🤖 AI기안'), ('real', '📱 실거래')]
-    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='ai', verbose_name="출처")
+    SOURCE_CHOICES = [('ceo', '👑 CEO'), ('sms', '📱 SMS')]
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='ceo', verbose_name="출처")
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="사용자", null=True, blank=True)
     order_no = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="주문번호") # 중복방지
 
@@ -215,16 +215,43 @@ class Stock(models.Model):
     per = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="PER")
     pbr = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="PBR")
     description = models.TextField(blank=True, verbose_name="기업 개요")
+    country = models.CharField(max_length=50, blank=True, verbose_name="국가")
+    display_order = models.IntegerField(default=0, verbose_name="표시 순서")
     
+    # [Refactor] Agent가 여러 종목을 관리하므로 관계를 Stock 쪽으로 이동
+    agent = models.ForeignKey('Agent', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_stocks', verbose_name="담당 AI")
+
     updated_at = models.DateTimeField(auto_now=True, verbose_name="최근 업데이트")
 
     @property
-    def is_korean(self):
-        # Simple heuristic: Korean stock codes are numeric and length 6
-        return self.code.isdigit() and len(str(self.code)) == 6
 
     def __str__(self):
-        return f"{self.name} ({self.code})"
+        return f"{self.date} 재무보고 ({self.organization.name})"
+
+class TradeNotification(models.Model):
+    """
+    미래에셋증권 등 외부 체결 알림(SMS) 원본 로그 저장
+    """
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='notifications')
+    content = models.TextField(verbose_name="SMS 원본 내용")
+    
+    # Parsed Data (Optional, if parsing succeeds)
+    stock_name = models.CharField(max_length=100, null=True, blank=True, verbose_name="종목명")
+    stock_code = models.CharField(max_length=20, null=True, blank=True, verbose_name="종목코드")
+    trade_type = models.CharField(max_length=10, null=True, blank=True, verbose_name="매매구분") # buy/sell
+    
+    quantity = models.IntegerField(default=0, verbose_name="수량")
+    price = models.DecimalField(max_digits=12, decimal_places=0, default=0, verbose_name="단가")
+    amount = models.DecimalField(max_digits=15, decimal_places=0, default=0, verbose_name="총 금액")
+    
+    is_parsed = models.BooleanField(default=False, verbose_name="파싱 성공 여부")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="수신 일시")
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.created_at.strftime('%m-%d %H:%M')}] {self.stock_name} ({self.trade_type}) - {self.amount:,.0f}원"
 
 # 9-1. 관심 종목 (Interest Stock)
 class InterestStock(models.Model):
@@ -255,6 +282,36 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username}의 프로필"
 
+# 10-1. 계좌 (Account)
+class Account(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='accounts', verbose_name="소속 회사")
+    financial_institution = models.CharField(max_length=50, verbose_name="금융회사명") # 예: 미래에셋, 키움
+    account_number = models.CharField(max_length=50, verbose_name="계좌번호")
+    account_holder = models.CharField(max_length=50, verbose_name="예금주명")
+    nickname = models.CharField(max_length=50, blank=True, verbose_name="계좌별명")
+    
+    is_default = models.BooleanField(default=False, verbose_name="기본 계좌 여부")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def display_label(self):
+        # Masking logic: Show first 5, last 3. Everything else *.
+        # Example: 1234567890 -> 12345**890
+        raw = self.account_number
+        if len(raw) <= 8:
+            masked = raw # Too short to mask strictly
+        else:
+            prefix = raw[:5]
+            suffix = raw[-3:]
+            # Calculate number of stars needed
+            star_count = len(raw) - 8
+            masked = f"{prefix}{'*' * star_count}{suffix}"
+            
+        return f"{self.nickname} ({masked})" if self.nickname else f"{self.financial_institution} ({masked})"
+
+    def __str__(self):
+        return f"{self.nickname} ({self.financial_institution})" if self.nickname else f"{self.financial_institution} {self.account_number}"
+
 # 11. 회계 및 자금 트랜잭션 (Transaction)
 class Transaction(models.Model):
     TRANSACTION_TYPES = [
@@ -267,6 +324,7 @@ class Transaction(models.Model):
     ]
 
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='transactions')
+    account = models.ForeignKey(Account, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions', verbose_name="거래 계좌") # [New]
     transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES, verbose_name="거래 유형")
     amount = models.DecimalField(max_digits=20, decimal_places=2, verbose_name="변동 금액")
     related_asset = models.ForeignKey('Stock', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="관련 자산(종목)")
