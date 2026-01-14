@@ -8,7 +8,7 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(InvestmentLog)
 class InvestmentLogAdmin(admin.ModelAdmin):
-    list_display = ('source', 'stock_name', 'quantity', 'status', 'approved_at', 'agent', 'user')
+    list_display = ('source', 'stock_name', 'quantity', 'status', 'approved_at', 'account', 'agent', 'user')
     list_filter = ('source', 'status', 'agent', 'user')
 
 # 1. 사용자 관리 (기존 설정 유지)
@@ -27,6 +27,7 @@ class CustomUserAdmin(UserAdmin):
     list_filter = ('organization', 'role', 'is_staff')
 
 # 2. 전자결재 결재 라인 인라인 설정
+# 2. 전자결재 결재 라인 인라인 설정
 class ApprovalLineInline(admin.TabularInline):
     model = ApprovalLine
     extra = 1
@@ -41,14 +42,65 @@ class ApprovalAdmin(admin.ModelAdmin):
 class StockInline(admin.TabularInline):
     model = Stock
     fields = ('name', 'code', 'current_price', 'country')
-    readonly_fields = ('current_price', 'country')
+    readonly_fields = ('name', 'code', 'current_price', 'country') # Read-only
     extra = 0
     can_delete = False
     show_change_link = True
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+# Agent Admin Form for Custom Stock Selection
+from django import forms
+from django.contrib.admin.widgets import FilteredSelectMultiple
+
+class AgentAdminForm(forms.ModelForm):
+    managed_stocks_selection = forms.ModelMultipleChoiceField(
+        queryset=Stock.objects.all(),
+        required=False,
+        widget=FilteredSelectMultiple("담당 종목", is_stacked=False),
+        label="담당 종목 선택"
+    )
+
+    class Meta:
+        model = Agent
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            # Initialize with currently assigned stocks
+            self.fields['managed_stocks_selection'].initial = self.instance.managed_stocks.all()
+
+    def save(self, commit=True):
+        agent = super().save(commit=False)
+        if commit:
+            agent.save()
+        
+        if agent.pk:
+            # Handle M2M-like logic for ForeignKey
+            # 1. Clear agent from all stocks previously managed by this agent (optional, or just overwrite)
+            # Strategy: Reset all currently managed, then set new ones.
+            # But specific logic: "Stocks selected" -> Set agent. "Not selected" -> If it was this agent, set to None?
+            
+            new_stocks = self.cleaned_data['managed_stocks_selection']
+            
+            # Find stocks that were managed by this agent but are NO LONGER in the new list
+            stocks_to_remove = Stock.objects.filter(agent=agent).exclude(id__in=[s.id for s in new_stocks])
+            stocks_to_remove.update(agent=None)
+            
+            # Set agent for newly selected stocks
+            for stock in new_stocks:
+                stock.agent = agent
+                stock.save()
+
+        return agent
 
 # 4. AI 직원(Agent) 관리 - [수정] profile_image 필드 추가
 @admin.register(Agent)
 class AgentAdmin(admin.ModelAdmin):
+    form = AgentAdminForm
+    
     # 목록에서 보여줄 항목: 사진 필드(profile_image)를 추가했습니다.
     list_display = ('name', 'department_obj', 'position', 'role', 'model_name')
     
@@ -58,17 +110,20 @@ class AgentAdmin(admin.ModelAdmin):
     # 검색 기능
     search_fields = ('name', 'department_obj__name', 'role')
 
-    # 자동 완성 필드 (ForeignKey 검색용)
-    # autocomplete_fields = ['stock'] # Removed
-    
     # 상세 페이지 설정: '기본 정보' 섹션에 'profile_image'를 추가하여 사진 업로드가 가능하게 했습니다.
     fieldsets = (
         ('기본 정보', {'fields': ('organization', 'name', 'department_obj', 'position', 'profile_image')}),
-        ('담당 업무', {'fields': ('role',)}),
+        ('담당 업무', {'fields': ('role', 'managed_stocks_selection')}), # Field added here
         ('AI 엔진 설정', {'fields': ('model_name', 'persona')}),
     )
     
-    inlines = [StockInline]
+    inlines = [StockInline] # Read-only view for verification
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Form.save() handles the stock assignment logic because we overrode it?
+        # Actually ModelAdmin calls form.save(), so logic in AgentAdminForm.save() will execute.
+        pass
 
     class Media:
         js = ('admin/js/agent_admin.js',)

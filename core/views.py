@@ -43,6 +43,10 @@ def identify_stock_country(ticker_symbol, info):
     if ticker_symbol.endswith('.KS') or ticker_symbol.endswith('.KQ'):
         return "한국"
     
+    # [Fix] 6-digit code is Korean (e.g. 000660)
+    if ticker_symbol.isdigit() and len(ticker_symbol) == 6:
+        return "한국"
+    
     # 3. No suffix (usually US)
     if '.' not in ticker_symbol:
         return "미국"
@@ -258,6 +262,7 @@ def investment_management(request):
         stock_name = request.POST.get('stock_name')
         qty = int(request.POST.get('quantity', 0))
         amt = int(request.POST.get('total_amount', 0))
+        account_id = request.POST.get('account_id') # [New]
         
         # Simple Draft Creation logic
         # Assuming finding stock code logic is omitted or simplified
@@ -270,6 +275,17 @@ def investment_management(request):
         # Fallback to chat agent if provided (though strict requirement says use stock agent)
         # Here we only have user context, so if None, it remains None (correct).
             
+        # [New] Get Account Object
+        account_obj = None
+        account_info_str = "미래에셋증권 (예금주: 꼼망컴퍼니)" # Default
+        
+        if account_id:
+            account_obj = Account.objects.filter(id=account_id).first()
+            if account_obj:
+                 # Requested Format: 증권사명/별명 (e.g., 미래에셋/내계좌)
+                 nick = account_obj.nickname if account_obj.nickname else "별명없음"
+                 account_info_str = f"{account_obj.financial_institution}/{nick}"
+
         # [NEW] Generate Standard Content (No attachment for CEO)
         formatted_content = format_approval_content(
             stock_name=stock_name,
@@ -277,9 +293,10 @@ def investment_management(request):
             quantity=qty,
             price=int(amt/qty) if qty > 0 else 0,
             total_amount=amt,
-            trade_type='buy', # Manual draft usually buy, or add toggle? User said "CEO Order" usually implies buy in this context or needs selector. Existing code hardcoded 'buy'.
+            trade_type='buy', 
             reason="CEO 직접 지시",
-            include_attachment=False
+            include_attachment=False,
+            account_info=account_info_str # [New]
         )
             
         Approval.objects.create(
@@ -293,7 +310,8 @@ def investment_management(request):
             temp_stock_name=stock_name,
             temp_stock_code=stock_code,
             temp_quantity=qty,
-            temp_total_amount=amt
+            temp_total_amount=amt,
+            temp_account=account_obj # [New] Save Account
         )
         return redirect('investment_management')
 
@@ -323,16 +341,35 @@ def financial_management(request):
         selected_date = parse_date(selected_date_str)
 
     latest_snapshot = None
-    transactions = Transaction.objects.filter(organization=user.organization).order_by('-timestamp')
 
     if selected_date:
         latest_snapshot = DailySnapshot.objects.filter(organization=user.organization, date=selected_date).first()
+        # For historical dates, we might want just transactions for that day? 
+        # But User request implies "Last Balance" correctness generally.
+        transactions = Transaction.objects.filter(organization=user.organization, timestamp__date=selected_date).order_by('-timestamp')
     else:
         # Real-time calculation using FinancialService
         latest_snapshot = FinancialService.calculate_financials(user.organization)
+        transactions = Transaction.objects.filter(organization=user.organization).order_by('-timestamp')
+
+    # [Dynamic Balance Calculation]
+    # To fix "Last Balance" issue without rewriting all DB history
+    # Use Aggregate Sum of transactions strictly to ensure table consistency
+    aggregated_balance = transactions.aggregate(Sum('amount'))['amount__sum'] or 0
+    running_bal = aggregated_balance
+    
+    transactions_list = list(transactions)
+    
+    for tx in transactions_list:
+        tx.dynamic_balance = running_bal
+        # Prepare for next row (older): The balance BEFORE this tx was (End - Amount)
+        # Wait. Balance After Tx = running_bal.
+        # Balance Before Tx = running_bal - tx.amount
+        # Next row (older) 's Balance After = Balance Before This Tx
+        running_bal = running_bal - tx.amount
 
     # Pagination for Transactions
-    paginator = Paginator(transactions, 15)
+    paginator = Paginator(transactions_list, 15)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
@@ -440,7 +477,8 @@ def approval_detail(request, pk):
                 quantity=approval.temp_quantity,
                 total_amount=approval.temp_total_amount,
                 status='approved',
-                approved_at=log_date
+                approved_at=log_date,
+                account=approval.temp_account # [New] Link Account
             )
             approval.investment_log = new_log
             
@@ -459,7 +497,9 @@ def approval_detail(request, pk):
                     stock=stock,
                     quantity=approval.temp_quantity,
                     price=price,
-                    description=f"승인된 매수: {approval.title}"
+                    description=f"승인된 매수: {approval.title}",
+                    account=approval.temp_account,
+                    timestamp=log_date # [New] Use Approval Date
                 )
             elif approval.report_type == 'sell':
                 # Realized Profit Calculation
@@ -1246,3 +1286,39 @@ def trade_notification_list(request):
         'current_sort': sort_by,
         'current_direction': direction
     })
+
+@login_required
+def update_all_stocks_api(request):
+    """
+    API to trigger update for all stocks or a specific stock.
+    POST /api/stock/update/
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+        
+    try:
+        from . import utils
+        import json
+        
+        # Check if specific stock requested
+        data = json.loads(request.body) if request.body else {}
+        stock_id = data.get('stock_id')
+        
+        if stock_id:
+            stock = Stock.objects.get(id=stock_id)
+            if utils.update_stock(stock):
+                return JsonResponse({'status': 'success', 'message': f'{stock.name} updated.'})
+            else:
+                return JsonResponse({'status': 'error', 'message': f'Failed to update {stock.name}.'})
+        else:
+            # Update all
+            stocks = Stock.objects.all()
+            count = 0
+            for stock in stocks:
+                if utils.update_stock(stock):
+                    count += 1
+            
+            return JsonResponse({'status': 'success', 'message': f'{count} stocks updated.'})
+            
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

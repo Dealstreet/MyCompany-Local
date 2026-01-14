@@ -92,6 +92,7 @@ class InvestmentLog(models.Model):
     SOURCE_CHOICES = [('ceo', '👑 CEO'), ('sms', '📱 SMS')]
     source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='ceo', verbose_name="출처")
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="사용자", null=True, blank=True)
+    account = models.ForeignKey('Account', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="매수 계좌") # [New]
     order_no = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="주문번호") # 중복방지
 
     stock_name = models.CharField(max_length=50, verbose_name="종목명", null=True, blank=True)
@@ -140,6 +141,7 @@ class Approval(models.Model):
     temp_stock_code = models.CharField(max_length=20, null=True, blank=True, verbose_name="임시 종목코드")
     temp_total_amount = models.DecimalField(max_digits=15, decimal_places=0, null=True, blank=True, verbose_name="임시 거래금액")
     temp_quantity = models.IntegerField(null=True, blank=True, verbose_name="임시 수량")
+    temp_account = models.ForeignKey('Account', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="임시 매수 계좌") # [New]
     
     # [추가] 날짜 및 기간 필드
     temp_date = models.DateField(null=True, blank=True, verbose_name="거래/분석 일자")
@@ -224,9 +226,11 @@ class Stock(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="최근 업데이트")
 
     @property
+    def is_korean(self):
+        return self.country in ['한국', 'Korea', 'South Korea', 'KR']
 
     def __str__(self):
-        return f"{self.date} 재무보고 ({self.organization.name})"
+        return f"{self.name} ({self.code})"
 
 class TradeNotification(models.Model):
     """

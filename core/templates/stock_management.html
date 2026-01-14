@@ -80,10 +80,15 @@
 <div class="dashboard-container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold text-dark m-0">📊 종목 관리</h2>
-        <button id="toggleOrderBtn" class="btn btn-outline-secondary btn-sm rounded-pill px-3"
-            onclick="toggleOrderMode()">
-            <i class="fas fa-sort me-1"></i> 순서 변경
-        </button>
+        <div class="d-flex gap-2">
+            <button onclick="updateAllStocks(this)" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+                <i class="fas fa-sync-alt me-1"></i> 전 종목 시세 업데이트
+            </button>
+            <button id="toggleOrderBtn" class="btn btn-outline-secondary btn-sm rounded-pill px-3"
+                onclick="toggleOrderMode()">
+                <i class="fas fa-sort me-1"></i> 순서 변경
+            </button>
+        </div>
         <div id="saveOrderControls" class="d-none align-items-center">
             <span class="text-primary fw-bold me-3 small"><i class="fas fa-check-circle"></i> 자동 저장 됨</span>
             <div class="btn-group me-2">
@@ -621,4 +626,40 @@
     });
 </script>
 
+</div>
+
+<script>
+    function updateAllStocks(btn) {
+        if (!confirm('전 종목의 시세(현재가, 52주 등)와 캔들 데이터를 업데이트하시겠습니까?\n시간이 다소 소요될 수 있습니다.')) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 업데이트 중...';
+
+        fetch('/api/stock/update/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('오류: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('서버 오류 발생');
+                console.error(error);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+    }
+</script>
 {% endblock %}

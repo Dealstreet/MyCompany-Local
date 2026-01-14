@@ -238,7 +238,7 @@
                             {% if tx.amount > 0 %}text-primary{% else %}text-danger{% endif %}">
                             {{ tx.amount|floatformat:0|intcomma }}원
                         </td>
-                        <td class="text-end text-dark">{{ tx.balance_after|floatformat:0|intcomma }}원</td>
+                        <td class="text-end text-dark">{{ tx.dynamic_balance|floatformat:0|intcomma }}원</td>
                         <td class="text-secondary">{{ tx.related_asset.name|default:"-" }}</td>
                         <td class="small">{{ tx.description }}</td>
                     </tr>

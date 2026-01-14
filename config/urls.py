@@ -56,6 +56,9 @@ urlpatterns = [
 
     # [New] Trade Notifications
     path('notifications/', views.trade_notification_list, name='trade_notification_list'),
+    
+    # Stock APIs
+    path('api/stock/update/', views.update_all_stocks_api, name='update_all_stocks_api'),
 ]
 
 # 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정

@@ -5,7 +5,7 @@ from django.db.models import Sum
 
 class TransactionService:
     @staticmethod
-    def create_transaction(organization, transaction_type, amount, related_asset=None, quantity=0, price=0, profit=0, fee=0, tax=0, description=""):
+    def create_transaction(organization, transaction_type, amount, related_asset=None, quantity=0, price=0, profit=0, fee=0, tax=0, description="", account=None, timestamp=None):
         """
         Creates a Transaction record and updates the Organization's cash balance atomically.
         """
@@ -32,7 +32,8 @@ class TransactionService:
                 tax=tax, # [K-IFRS]
                 balance_after=org.cash_balance,
                 description=description,
-                timestamp=timezone.now()
+                timestamp=timestamp if timestamp else timezone.now(), # Use provided timestamp
+                account=account 
             )
             
             return new_tx
@@ -60,7 +61,7 @@ class TransactionService:
         )
 
     @staticmethod
-    def buy_stock(organization, stock, quantity, price, fee=0, description="Buy Stock"): # [K-IFRS] fee added
+    def buy_stock(organization, stock, quantity, price, fee=0, description="Buy Stock", account=None, timestamp=None): # [K-IFRS] fee added
         # Cost = (Qty * Price) + Fee
         # But 'amount' in transaction is strictly cash flow.
         # If I pay 100 for stock and 1 for fee, total cash outflow is 101.
@@ -79,11 +80,13 @@ class TransactionService:
             quantity=quantity, # + (Asset increases)
             price=price,
             fee=fee,
-            description=description
+            description=description,
+            account=account,
+            timestamp=timestamp
         )
 
     @staticmethod
-    def sell_stock(organization, stock, quantity, price, fee=0, tax=0, profit=0, description="Sell Stock"): # [K-IFRS] fee, tax added
+    def sell_stock(organization, stock, quantity, price, fee=0, tax=0, profit=0, description="Sell Stock", account=None, timestamp=None): # [K-IFRS] fee, tax added
         # Revenue = (Qty * Price) - Fee - Tax
         revenue_principal = quantity * price
         total_revenue = revenue_principal - fee - tax
@@ -98,7 +101,9 @@ class TransactionService:
             profit=profit,
             fee=fee,
             tax=tax,
-            description=description
+            description=description,
+            account=account,
+            timestamp=timestamp
         )
 
 class FinancialService:

@@ -139,7 +139,7 @@ def number_to_hangul(number):
         
     return "".join(reversed(result))
 
-def format_approval_content(stock_name, stock_code, quantity, price, total_amount, trade_type, date=None, reason="", include_attachment=True, order_no="N/A"):
+def format_approval_content(stock_name, stock_code, quantity, price, total_amount, trade_type, date=None, reason="", include_attachment=True, order_no="N/A", account_info="미래에셋증권 (예금주: 꼼망컴퍼니)"):
     """
     Generates standardized approval document content.
     """
@@ -172,7 +172,7 @@ def format_approval_content(stock_name, stock_code, quantity, price, total_amoun
         <p><b>가. 체결 개요</b></p>
         <ul style="list-style-type: none; padding-left: 20px;">
             <li>1) 일자: {year}년 {month}월 {day}일 ({weekday})</li>
-            <li>2) 계좌: 미래에셋증권 (예금주: 꼼망컴퍼니)</li>
+            <li>2) 계좌: {account_info}</li>
             <li>3) 주문 번호: {order_no}</li>
         </ul>
         <br>
@@ -232,3 +232,91 @@ def get_agent_by_stock(stock_name, stock_code):
         return stock_obj.agent
         
     return None
+
+
+import yfinance as yf
+
+def update_stock(stock_obj):
+    """
+    Updates a single Stock object with data from Yahoo Finance.
+    Returns True if successful, False otherwise.
+    """
+    try:
+        # 1. Resolve Symbol
+        symbol = stock_obj.code
+        
+        # Check if Korean stock (6 digits) without suffix
+        if symbol.isdigit() and len(symbol) == 6:
+            # Try .KS first (KOSPI), then .KQ (KOSDAQ) - Naive approach
+            # Or assume .KS for now, or check metadata. 
+            # Better strategy: Try .KS, if error/empty, try .KQ
+            try_symbols = [f"{symbol}.KS", f"{symbol}.KQ"]
+        else:
+            try_symbols = [symbol]
+
+        ticker = None
+        info = None
+        
+        for sym in try_symbols:
+            t = yf.Ticker(sym)
+            try:
+                # fast_info is faster and often sufficient for price
+                i = t.fast_info
+                if i.last_price is not None:
+                    ticker = t
+                    info = i
+                    break
+            except Exception:
+                continue
+        
+        if not ticker:
+            print(f"Failed to find ticker for {stock_obj.name} ({stock_obj.code})")
+            return False
+
+        # 2. Update Basic Info
+        stock_obj.current_price = info.last_price
+        
+        # Extended Info (Regular info dict for some fields)
+        try:
+            full_info = ticker.info
+            stock_obj.high_52w = full_info.get('fiftyTwoWeekHigh')
+            stock_obj.low_52w = full_info.get('fiftyTwoWeekLow')
+            stock_obj.market_cap = full_info.get('marketCap')
+            stock_obj.per = full_info.get('trailingPE')
+            stock_obj.pbr = full_info.get('priceToBook')
+            stock_obj.description = full_info.get('longBusinessSummary') or ""
+            
+            # Country Check (if empty)
+            if not stock_obj.country:
+                ctry = full_info.get('country', '')
+                if ctry == 'South Korea': stock_obj.country = '한국'
+                elif ctry == 'United States': stock_obj.country = '미국'
+                else: stock_obj.country = ctry
+                
+        except Exception as e:
+            print(f"Error fetching full info for {stock_obj.name}: {e}")
+
+        # 3. Update Candle Data (3 Years, Weekly) for Charts
+        try:
+            hist = ticker.history(period="3y", interval="1wk")
+            # Format: [[timestamp, open, high, low, close], ...] or simple approach
+            # Using simple list of objects or dicts
+            data = []
+            for date, row in hist.iterrows():
+                # ApexCharts expects timestamp in ms
+                ts = int(date.timestamp() * 1000)
+                # O, H, L, C
+                data.append({
+                    'x': ts,
+                    'y': [row['Open'], row['High'], row['Low'], row['Close']]
+                })
+            stock_obj.candle_data = data
+        except Exception as e:
+            print(f"Error fetching history for {stock_obj.name}: {e}")
+
+        stock_obj.save()
+        return True
+        
+    except Exception as e:
+        print(f"Generla error updating {stock_obj.name}: {e}")
+        return False

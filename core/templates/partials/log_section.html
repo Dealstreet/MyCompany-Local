@@ -10,8 +10,9 @@
                 <th width="10%">출처</th>
                 <th width="15%">일시</th>
                 <th width="10%">구분</th>
-                <th width="20%">종목명</th>
-                <th width="15%" class="text-end">수량</th>
+                <th width="15%">종목명</th>
+                <th width="10%">매수계좌</th> <!-- [New] -->
+                <th width="10%" class="text-end">수량</th>
                 <th width="15%" class="text-end">평균단가</th>
                 <th width="15%" class="text-end">거래금액</th>
             </tr>
@@ -37,6 +38,13 @@
                     {% endif %}
                 </td>
                 <td class="fw-bold">{{ log.stock_name|default:log.stock_code }}</td>
+                <td class="small">
+                    {% if log.account %}
+                    {{ log.account.nickname|default:log.account.financial_institution }}
+                    {% else %}
+                    -
+                    {% endif %}
+                </td> <!-- [New] -->
                 <td class="text-end fw-bold">{{ log.quantity|stringformat:"+d"|intcomma }}주</td> <!-- 부호 표시 -->
                 <td class="text-end">
                     {% if log.stock_obj.country == 'USA' %}
@@ -55,7 +63,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="text-align: center; padding: 40px; color: #94a3b8;">
+                <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
                     운용 기록이 없습니다.
                 </td>
             </tr>

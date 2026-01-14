@@ -260,8 +260,11 @@
 
 <div class="dashboard-container">
 
-    <div class="d-flex align-items-center mb-4 gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold text-dark m-0">📈 투자 관리</h2>
+        <button onclick="updateAllStocks(this)" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+            <i class="fas fa-sync-alt me-1"></i> 평가금액 새로고침
+        </button>
     </div>
 
     <div class="summary-row">
@@ -314,7 +317,7 @@
                         </div>
 
                         <div class="mb-3">
-                            <label class="input-label">출금 계좌</label>
+                            <label class="input-label">매수계좌</label>
                             <select name="account_id" class="input-field" required>
                                 <option value="" disabled selected>계좌 선택</option>
                                 {% for acc in accounts %}
@@ -357,15 +360,15 @@
                                 const suffixTotal = document.getElementById('suffixTotal');
                                 const form = document.querySelector('form');
 
-                                function getIsKorean() {
-                                    if (stockSelect.selectedIndex === -1) return 'true'; // Default to Won
-                                    return stockSelect.options[stockSelect.selectedIndex].getAttribute('data-is-korean');
+                                function getCountry() {
+                                    if (stockSelect.selectedIndex === -1) return '한국'; // Default
+                                    return stockSelect.options[stockSelect.selectedIndex].getAttribute('data-country') || '한국';
                                 }
 
                                 function updateCurrency() {
-                                    const isKorean = getIsKorean();
+                                    const country = getCountry();
 
-                                    if (isKorean === 'false') {
+                                    if (country === '미국') {
                                         suffixPrice.innerText = '달러';
                                         suffixTotal.innerText = '달러';
                                     } else {
@@ -374,30 +377,42 @@
                                     }
                                 }
 
-                                // Helper: Add commas
-                                function formatNumber(num) {
-                                    if (!num) return '';
-                                    // Split decimal if exists
-                                    let parts = num.toString().split('.');
-                                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-                                    return parts.join('.');
+                                // Helper: Format with commas and specific decimals
+                                function formatNumber(num, forceDecimals = null) {
+                                    if (num === '' || num === null || isNaN(num)) return '';
+
+                                    const country = getCountry();
+                                    let options = {};
+
+                                    if (forceDecimals !== null) {
+                                        options = { minimumFractionDigits: forceDecimals, maximumFractionDigits: forceDecimals };
+                                    } else if (country === '미국') {
+                                        options = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+                                    } else {
+                                        options = { minimumFractionDigits: 0, maximumFractionDigits: 0 };
+                                    }
+
+                                    return Number(num).toLocaleString('en-US', options);
                                 }
 
-                                // Helper: Remove commas and return number
+                                // Helper: Parse number from string (remove commas)
                                 function parseNumber(str) {
                                     if (!str) return 0;
                                     return Number(str.toString().replace(/,/g, ''));
                                 }
 
-                                // Helper: Format input value
-                                function formatInput(input) {
-                                    let val = input.value.replace(/,/g, '');
-                                    if (!isNaN(val)) {
-                                        input.value = formatNumber(val);
+                                // Update Input Display Value
+                                function updateInputDisplay(input, val) {
+                                    if (input === qtyInput) {
+                                        input.value = val; // Qty is just integer usually? Or just text.
+                                        return;
                                     }
+
+                                    // For Price/Total
+                                    input.value = formatNumber(val);
                                 }
 
-                                // Stock Selected -> Auto-fill Price
+                                // Stock Selected -> Auto-fill Price and Suffix
                                 stockSelect.addEventListener('change', function () {
                                     const selectedOption = this.options[this.selectedIndex];
                                     const price = selectedOption.getAttribute('data-price');
@@ -405,12 +420,8 @@
                                     updateCurrency();
 
                                     if (price) {
-                                        const isKorean = selectedOption.getAttribute('data-is-korean');
-                                        if (isKorean === 'false') {
-                                            priceInput.value = formatNumber(Number(price).toFixed(2));
-                                        } else {
-                                            priceInput.value = formatNumber(Math.floor(Number(price)));
-                                        }
+                                        // Auto-fill price with correct format
+                                        priceInput.value = formatNumber(Number(price));
                                         updateTotal();
                                     }
                                 });
@@ -419,15 +430,10 @@
                                 function updateTotal() {
                                     const p = parseNumber(priceInput.value);
                                     const q = Number(qtyInput.value);
-                                    const isKorean = getIsKorean();
 
                                     if (p && q) {
-                                        let total;
-                                        if (isKorean === 'false') {
-                                            total = (p * q).toFixed(2);
-                                        } else {
-                                            total = Math.floor(p * q);
-                                        }
+                                        const total = p * q;
+                                        // Total display matches country rule
                                         totalInput.value = formatNumber(total);
                                     }
                                 }
@@ -437,24 +443,26 @@
                                     const t = parseNumber(totalInput.value);
                                     const p = parseNumber(priceInput.value);
                                     if (t && p) {
+                                        // Qty should be integer
                                         qtyInput.value = Math.floor(t / p);
                                     }
                                 }
 
-                                priceInput.addEventListener('input', function () {
-                                    // Allow typing decimals for US stocks
-                                    if (this.value.endsWith('.')) return;
-                                    formatInput(this);
+                                // Input Event Handling for strict formatting
+                                priceInput.addEventListener('change', function () {
+                                    const val = parseNumber(this.value);
+                                    this.value = formatNumber(val);
                                     updateTotal();
                                 });
 
-                                qtyInput.addEventListener('input', updateTotal);
-
-                                totalInput.addEventListener('input', function () {
-                                    // Allow typing decimals
-                                    if (this.value.endsWith('.')) return;
-                                    formatInput(this);
+                                totalInput.addEventListener('change', function () {
+                                    const val = parseNumber(this.value);
+                                    this.value = formatNumber(val);
                                     updateQty();
+                                });
+
+                                qtyInput.addEventListener('input', function () {
+                                    updateTotal();
                                 });
 
                                 // Form Submit: Validation & Remove commas
@@ -463,7 +471,7 @@
                                     let missing = [];
 
                                     if (!stockSelect.value) missing.push("종목명");
-                                    if (!accountSelect.value) missing.push("출금 계좌");
+                                    if (!accountSelect.value) missing.push("매수계좌");
                                     if (!priceInput.value) missing.push("매수 단가");
                                     if (!qtyInput.value) missing.push("수량");
                                     if (!totalInput.value) missing.push("총 매수금액");
@@ -479,10 +487,9 @@
                                     totalInput.value = totalInput.value.replace(/,/g, '');
                                 });
 
-                                // Initialize
-                                if (stockSelect.value) {
-                                    updateCurrency();
-                                }
+                                // Initial currency set
+                                updateCurrency();
+
                             });
                         </script>
 
@@ -580,3 +587,38 @@
 
 </div>
 {% endblock %}
+
+<script>
+    function updateAllStocks(btn) {
+        if (!confirm('전 종목의 평가금액을 최신 주가로 업데이트하시겠습니까?')) return;
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> 업데이트 중...';
+
+        fetch('/api/stock/update/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(data.message);
+                    location.reload();
+                } else {
+                    alert('오류: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('서버 오류 발생');
+                console.error(error);
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+    }
+</script>
