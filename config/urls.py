@@ -3,7 +3,7 @@ from django.urls import path
 from django.conf import settings 
 from django.conf.urls.static import static 
 from django.contrib.auth import views as auth_views
-from core import views
+from core import views, views_backtest
 from core.views import SmsWebhookView
 
 urlpatterns = [
@@ -59,6 +59,11 @@ urlpatterns = [
     
     # Stock APIs
     path('api/stock/update/', views.update_all_stocks_api, name='update_all_stocks_api'),
+
+    # [New] Backtest
+    path('backtest/', views_backtest.backtest_dashboard, name='backtest_dashboard'),
+    path('core/backtest/run/', views_backtest.run_backtest_api, name='run_backtest_api'),
+    path('core/backtest/export/', views_backtest.export_backtest_csv, name='export_backtest_csv'),
 ]
 
 # 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정

@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}📈 전략 백테스팅{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Left: Strategy Builder -->
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">🛠️ 전략 빌더</h5>
+                <button class="btn btn-sm btn-outline-light" onclick="resetStrategy()">초기화</button>
+            </div>
+            <div class="card-body" style="overflow-y: auto; max-height: 800px;">
+                <form id="strategyForm">
+                    <!-- Target Stock & Name -->
+                    <div class="mb-3">
+                        <label class="form-label">전략 이름</label>
+                        <input type="text" class="form-control" id="strategyName" placeholder="예: 골든크로스 전략" required>
+                    </div>
+
+                    <!-- Buy Conditions -->
+                    <div class="card mb-3 border-danger">
+                        <div class="card-header bg-danger text-white">매수 조건 (Logic)</div>
+                        <div class="card-body" id="buyLogicContainer">
+                            <!-- Helper Text -->
+                            <p class="text-muted small">아래 비어있는 공간에 '조건 그룹'을 추가하여 매수 타이밍을 정의하세요.</p>
+                            <!-- Root Node will be injected here via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Sell Conditions -->
+                    <div class="card mb-3 border-primary">
+                        <div class="card-header bg-primary text-white">매도 조건 (Logic)</div>
+                        <div class="card-body" id="sellLogicContainer">
+                            <p class="text-muted small">매도 조건이 없으면 매수 후 계속 보유합니다.</p>
+                        </div>
+                    </div>
+
+                    <!-- DCA Config -->
+                    <div class="card mb-3 border-secondary">
+                        <div class="card-header">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="dcaEnabled" onchange="toggleDCA()">
+                                <label class="form-check-label" for="dcaEnabled">💰 적립식 투자(DCA) 설정</label>
+                            </div>
+                        </div>
+                        <div class="card-body" id="dcaConfigPanel" style="display:none;">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">방식</label>
+                                    <select class="form-select" id="dcaType">
+                                        <option value="fixed_amount">매회 고정 금액 (원)</option>
+                                        <option value="fixed_quantity">매회 고정 수량 (주)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">값 (금액/수량)</label>
+                                    <input type="number" class="form-control" id="dcaAmount" value="100000">
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">주기</label>
+                                    <select class="form-select" id="dcaInterval">
+                                        <option value="monthly">매월 1일</option>
+                                        <option value="weekly">매주</option>
+                                        <option value="daily">매일</option>
+                                        <option value="condition_based">조건 감지시(구현 예정)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Backtest Control & Results -->
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <span>⚙️ 시뮬레이션 설정</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <label class="form-label">대상 종목</label>
+                        <select class="form-select" id="stockSelect">
+                            {% for stock in stocks %}
+                            <option value="{{ stock.code }}">{{ stock.name }} ({{ stock.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">초기 자본금</label>
+                        <input type="number" class="form-control" id="initialCapital" value="10000000">
+                    </div>
+                </div>
+                <div class="d-grid mt-3">
+                    <button class="btn btn-success btn-lg" onclick="runBacktest()">🚀 백테스트 실행</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Result Stats -->
+        <div id="resultStats" class="row g-2 mb-3" style="display:none;">
+            <div class="col-md-2">
+                <div class="card text-center text-white bg-primary">
+                    <div class="card-body p-2">
+                        <h6 class="card-title" style="font-size:0.8rem;">최종 자산</h6>
+                        <p class="card-text fw-bold" id="resFinalCapital">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center text-white bg-success">
+                    <div class="card-body p-2">
+                        <h6 class="card-title" style="font-size:0.8rem;">수익률</h6>
+                        <p class="card-text fw-bold" id="resReturn">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center text-white bg-danger">
+                    <div class="card-body p-2">
+                        <h6 class="card-title" style="font-size:0.8rem;">MDD</h6>
+                        <p class="card-text fw-bold" id="resMdd">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center bg-light">
+                    <div class="card-body p-2">
+                        <h6 class="card-title" style="font-size:0.8rem;">총 거래(진입/청산)</h6>
+                        <p class="card-text fw-bold" id="resTrades">-</p>
+                    </div>
+                </div>
+            </div>
+            <!-- New KPIs -->
+            <div class="col-md-2">
+                <div class="card text-center text-white bg-warning">
+                    <div class="card-body p-2">
+                        <h6 class="card-title" style="font-size:0.8rem;">승률</h6>
+                        <p class="card-text fw-bold" id="resWinRate">-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card text-center text-white bg-info">
+                    <div class="card-body p-2">
+                        <h6 class="card-title" style="font-size:0.8rem;">손익비</h6>
+                        <p class="card-text fw-bold" id="resProfitFactor">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card mb-3">
+            <div class="card-body position-relative">
+                <canvas id="equityChart" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
+
+        <!-- Trade Log -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>📜 거래 내역</span>
+                <form id="csvExportForm" method="POST" action="{% url 'export_backtest_csv' %}" target="_blank">
+                    <input type="hidden" name="ticker" id="csvTicker">
+                    <input type="hidden" name="capital" id="csvCapital">
+                    <input type="hidden" name="strategy_json" id="csvStrategy">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" id="btnDownloadCsv" disabled>
+                        💾 매매일지 다운로드
+                    </button>
+                </form>
+            </div>
+            <div class="card-body p-0" style="overflow-y: auto; max-height: 300px;">
+                <table class="table table-sm table-striped mb-0 text-center" style="font-size: 0.9em;">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>날짜</th>
+                            <th>유형</th>
+                            <th>가격</th>
+                            <th>수량</th>
+                            <th>금액</th>
+                            <th>잔고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeLogBody">
+                        <!-- JS injected -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Builder Templates (Hidden) -->
+<template id="tpl-logic-node">
+    <div class="logic-node border rounded p-2 mb-2 bg-light">
+        <div class="d-flex justify-content-between mb-2">
+            <select class="form-select form-select-sm w-auto connector-select">
+                <option value="AND">AND (모두 만족)</option>
+                <option value="OR">OR (하나라도 만족)</option>
+            </select>
+            <div>
+                <button type="button" class="btn btn-xs btn-outline-primary add-condition-btn">+ 조건</button>
+                <button type="button" class="btn btn-xs btn-outline-dark add-group-btn">+ 그룹</button>
+                <button type="button" class="btn btn-xs btn-outline-danger remove-node-btn">X</button>
+            </div>
+        </div>
+        <div class="conditions-container ps-3 border-start border-3"></div>
+    </div>
+</template>
+
+<template id="tpl-condition-row">
+    <div class="condition-row d-flex gap-1 align-items-center mb-1">
+        <!-- LHS Indicator -->
+        <select class="form-select form-select-sm lhs-ind" style="width: 120px;">
+            <option value="PRICE">주가 (Close)</option>
+            <option value="RSI">RSI</option>
+            <option value="SMA">이동평균(SMA)</option>
+            <option value="EMA">지수평균(EMA)</option>
+            <!-- <option value="MACD">MACD</option> -->
+        </select>
+
+        <!-- LHS Params (Dynamic) -->
+        <input type="number" class="form-control form-control-sm lhs-param" style="width: 60px;" placeholder="14"
+            value="14">
+
+        <!-- Operator -->
+        <select class="form-select form-select-sm operator" style="width: 60px;">
+            <option value=">">&gt;</option>
+            <option value="<">&lt;</option>
+            <option value="=">=</option>
+            <option value="CROSS_UP">상향돌파</option>
+            <option value="CROSS_DOWN">하향돌파</option>
+        </select>
+
+        <!-- RHS Type -->
+        <select class="form-select form-select-sm rhs-type" style="width: 70px;" onchange="toggleRhsInput(this)">
+            <option value="STATIC">값(수)</option>
+            <option value="INDICATOR">지표</option>
+        </select>
+
+        <!-- RHS Value or Indicator -->
+        <div class="rhs-input-container">
+            <input type="number" class="form-control form-control-sm rhs-val" style="width: 70px;" placeholder="30">
+        </div>
+
+        <button type="button" class="btn btn-xs btn-outline-danger remove-condition-btn">X</button>
+    </div>
+</template>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // --- 1. UI Logic Builders ---
+    const tplNode = document.getElementById('tpl-logic-node');
+    const tplCond = document.getElementById('tpl-condition-row');
+
+    function createLogicNode(parentContainer, isRoot = false) {
+        const clone = tplNode.content.cloneNode(true);
+        const nodeDiv = clone.querySelector('.logic-node');
+        const container = clone.querySelector('.conditions-container');
+
+        // Add Condition
+        clone.querySelector('.add-condition-btn').onclick = () => createConditionRow(container);
+
+        // Add Group
+        clone.querySelector('.add-group-btn').onclick = () => createLogicNode(container);
+
+        // Remove Node
+        const removeBtn = clone.querySelector('.remove-node-btn');
+        if (isRoot) {
+            removeBtn.remove(); // Root cannot be deleted
+        } else {
+            removeBtn.onclick = () => nodeDiv.remove();
+        }
+
+        parentContainer.appendChild(nodeDiv);
+
+        // Add one default condition for convenience
+        if (isRoot) createConditionRow(container);
+    }
+
+    function createConditionRow(container) {
+        const clone = tplCond.content.cloneNode(true);
+        const rowDiv = clone.querySelector('.condition-row');
+
+        // Remove
+        clone.querySelector('.remove-condition-btn').onclick = () => rowDiv.remove();
+
+        // Dynamic Params Handling (Simple version for demo)
+        const lhsSel = rowDiv.querySelector('.lhs-ind');
+        const lhsParam = rowDiv.querySelector('.lhs-param');
+
+        lhsSel.onchange = () => {
+            // Hide param box for PRICE
+            if (lhsSel.value === 'PRICE') lhsParam.style.display = 'none';
+            else lhsParam.style.display = 'block';
+        };
+
+        container.appendChild(rowDiv);
+    }
+
+    function toggleRhsInput(selectElem) {
+        const row = selectElem.closest('.condition-row');
+        const container = row.querySelector('.rhs-input-container');
+        const val = selectElem.value;
+
+        container.innerHTML =
+            val === 'STATIC'
+                ? '<input type="number" class="form-control form-control-sm rhs-val" style="width: 70px;" placeholder="30">'
+                : `<div class="d-flex gap-1">
+                     <select class="form-select form-select-sm rhs-ind" style="width: 80px;">
+                        <option value="PRICE">주가</option>
+                        <option value="SMA">SMA</option>
+                        <option value="EMA">EMA</option>
+                     </select>
+                     <input type="number" class="form-control form-control-sm rhs-param" style="width: 50px;" value="20">
+                   </div>`;
+    }
+
+    function toggleDCA() {
+        const pan = document.getElementById('dcaConfigPanel');
+        pan.style.display = document.getElementById('dcaEnabled').checked ? 'block' : 'none';
+    }
+
+    function resetStrategy() {
+        document.getElementById('buyLogicContainer').innerHTML = '';
+        document.getElementById('sellLogicContainer').innerHTML = '';
+        createLogicNode(document.getElementById('buyLogicContainer'), true);
+    }
+
+    // Initialize
+    window.onload = function () {
+        createLogicNode(document.getElementById('buyLogicContainer'), true);
+    };
+
+    // --- 2. JSON Parser (DOM -> JSON) ---
+    function parseLogicNode(nodeDiv) {
+        const connector = nodeDiv.querySelector('.connector-select').value;
+        const container = nodeDiv.querySelector('.conditions-container');
+        const children = container.children;
+
+        const conditions = [];
+
+        for (let child of children) {
+            if (child.classList.contains('logic-node')) {
+                conditions.push(parseLogicNode(child));
+            } else if (child.classList.contains('condition-row')) {
+                conditions.push(parseCondition(child));
+            }
+        }
+
+        return {
+            connector: connector,
+            conditions: conditions
+        };
+    }
+
+    function parseCondition(row) {
+        const lhsInd = row.querySelector('.lhs-ind').value;
+        const lhsParamVal = row.querySelector('.lhs-param').value;
+        const operator = row.querySelector('.operator').value;
+        const rhsType = row.querySelector('.rhs-type').value;
+
+        let rhsVal;
+        if (rhsType === 'STATIC') {
+            rhsVal = parseFloat(row.querySelector('.rhs-val').value) || 0;
+        } else {
+            // Indicator config
+            const rhsIndName = row.querySelector('.rhs-ind').value;
+            const rhsParamVal = row.querySelector('.rhs-param').value;
+            rhsVal = {
+                name: rhsIndName,
+                params: { period: parseInt(rhsParamVal) }
+            };
+        }
+
+        return {
+            indicator: {
+                name: lhsInd,
+                params: { period: parseInt(lhsParamVal) || 0 }
+            },
+            operator: operator,
+            value_type: rhsType,
+            value: rhsVal
+        };
+    }
+
+    function buildStrategyJson() {
+        const buyRoot = document.getElementById('buyLogicContainer').firstElementChild;
+        const buyLogic = parseLogicNode(buyRoot);
+
+        // Sell Logic (Optional)
+        let sellLogic = null;
+        const sellRoot = document.getElementById('sellLogicContainer').firstElementChild;
+        if (sellRoot) sellLogic = parseLogicNode(sellRoot);
+
+        const dcaEnabled = document.getElementById('dcaEnabled').checked;
+
+        return {
+            buy_conditions: buyLogic,
+            sell_conditions: sellLogic,
+            dca_config: {
+                enabled: dcaEnabled,
+                type: document.getElementById('dcaType').value,
+                amount: parseFloat(document.getElementById('dcaAmount').value),
+                interval: document.getElementById('dcaInterval').value
+            }
+        };
+    }
+
+    // --- 3. AJAX & Chart ---
+    let myChart = null;
+
+    async function runBacktest() {
+        const strategy = buildStrategyJson();
+        const stockCode = document.getElementById('stockSelect').value;
+        const capital = document.getElementById('initialCapital').value;
+
+        // Validation Warning
+        if (!stockCode) return alert("종목을 선택해주세요.");
+
+        const btn = document.querySelector('.btn-success');
+        const oldText = btn.innerText;
+        btn.innerText = "⏳ 실행 중...";
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/core/backtest/run/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    ticker: stockCode,
+                    capital: capital,
+                    strategy: strategy
+                })
+            });
+
+            const res = await response.json();
+            if (!res.success) throw new Error(res.error || "Unknown Error");
+
+            updateDashboard(res.data);
+
+        } catch (e) {
+            alert("백테스팅 실패: " + e.message);
+        } finally {
+            btn.innerText = oldText;
+            btn.disabled = false;
+        }
+    }
+
+    function updateDashboard(data) {
+        // 1. Stats
+        document.getElementById('resultStats').style.display = 'flex';
+        document.getElementById('resFinalCapital').innerText = Number(data.final_equity).toLocaleString() + "원";
+        document.getElementById('resReturn').innerText = data.total_return.toFixed(2) + "%";
+        document.getElementById('resReturn').innerText = data.total_return.toFixed(2) + "%";
+        document.getElementById('resMdd').innerText = data.mdd.toFixed(2) + "%";
+        document.getElementById('resTrades').innerText = data.trades.length + "회"; // Total Logs
+
+        // New KPIs
+        document.getElementById('resWinRate').innerText = (data.win_rate !== undefined ? data.win_rate.toFixed(1) : "-") + "%";
+        document.getElementById('resProfitFactor').innerText = (data.profit_factor !== undefined ? data.profit_factor.toFixed(2) : "-");
+
+        // Enable CSV Download
+        const stockCode = document.getElementById('stockSelect').value;
+        const capital = document.getElementById('initialCapital').value;
+        const strategy = buildStrategyJson();
+
+        document.getElementById('csvTicker').value = stockCode;
+        document.getElementById('csvCapital').value = capital;
+        document.getElementById('csvStrategy').value = JSON.stringify(strategy);
+        document.getElementById('btnDownloadCsv').disabled = false;
+
+        // 2. Chart Markers
+        const ctx = document.getElementById('equityChart').getContext('2d');
+        if (myChart) myChart.destroy();
+
+        const labels = data.equity_curve.map(d => d.date);
+        const equityData = data.equity_curve.map(d => d.equity);
+
+        // Prepare Buy/Sell Markers
+        // We need to map trades to the correct index in 'labels'
+        const buyPoints = [];
+        const sellPoints = [];
+
+        const dateToIndex = {};
+        labels.forEach((d, i) => dateToIndex[d] = i);
+
+        data.trades.forEach(t => {
+            const idx = dateToIndex[t.date];
+            if (idx !== undefined) {
+                // Determine equity value at that date (roughly)
+                const yVal = equityData[idx];
+
+                if (t.type.includes('BUY')) {
+                    buyPoints.push({ x: t.date, y: yVal, desc: `매수: ${Number(t.price).toLocaleString()}원 (${t.quantity}주)` });
+                } else if (t.type.includes('SELL')) {
+                    sellPoints.push({ x: t.date, y: yVal, desc: `매도: ${Number(t.price).toLocaleString()}원 (${t.quantity}주)` });
+                }
+            }
+        });
+
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: '자산 추이',
+                        data: equityData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        order: 2
+                    },
+                    {
+                        label: '매수 (Buy)',
+                        data: buyPoints,
+                        type: 'scatter',
+                        backgroundColor: 'red',
+                        pointStyle: 'triangle',
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        order: 1
+                    },
+                    {
+                        label: '매도 (Sell)',
+                        data: sellPoints,
+                        type: 'scatter',
+                        backgroundColor: 'blue',
+                        pointStyle: 'triangle',
+                        rotation: 180, // Inverted triangle
+                        pointRadius: 8,
+                        pointHoverRadius: 10,
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'nearest',
+                    intersect: false,
+                    axis: 'x'
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const pt = context.raw;
+                                if (pt.desc) return pt.desc;
+                                return context.dataset.label + ": " + Number(context.raw).toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // 3. Log
+        const tbody = document.getElementById('tradeLogBody');
+        tbody.innerHTML = '';
+        data.trades.forEach(t => {
+            const tr = document.createElement('tr');
+
+            let color = 'text-dark';
+            if (t.type.includes('BUY')) color = 'text-danger';
+            if (t.type.includes('SELL')) color = 'text-primary';
+
+            tr.innerHTML = `
+                <td>${t.date}</td>
+                <td class="${color} fw-bold">${t.type}</td>
+                <td>${Number(t.price).toLocaleString()}</td>
+                <td>${t.quantity}</td>
+                <td>${Number(t.amount).toLocaleString()}</td>
+                <td>${Number(t.amount).toLocaleString()}</td>
+                <td>
+                    ${Number(t.balance).toLocaleString()}
+                    ${t.pnl ? `<br><small class="${t.pnl > 0 ? 'text-success' : 'text-danger'}">(${t.pnl > 0 ? '+' : ''}${Number(t.pnl).toLocaleString()})</small>` : ''}
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+</script>
+{% endblock %}

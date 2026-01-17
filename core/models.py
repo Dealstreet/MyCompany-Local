@@ -381,3 +381,34 @@ class DailySnapshot(models.Model):
 
     def __str__(self):
         return f"{self.date} 재무보고 ({self.organization.name})"
+
+# 13. 전략 (Strategy) - 백테스팅 및 실전 매매 로직 저장
+from django.core.exceptions import ValidationError
+from .utils_strategy import StrategyConfig # Import Pydantic model
+
+class Strategy(models.Model):
+    name = models.CharField(max_length=100, verbose_name="전략명")
+    description = models.TextField(blank=True, verbose_name="설명")
+    target_stock = models.ForeignKey(Stock, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="대상 종목(선택)")
+    
+    # Logic Storage
+    logic = models.JSONField(verbose_name="로직 설정(JSON)")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def clean(self):
+        super().clean()
+        if self.logic:
+            try:
+                # Pydantic Validation
+                StrategyConfig(**self.logic)
+            except Exception as e:
+                raise ValidationError(f"Invalid Strategy Logic: {e}")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
