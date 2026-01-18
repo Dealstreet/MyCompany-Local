@@ -55,7 +55,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 # 사용자님이 작성하신 사이드바 AI 목록 자동화 프로세서
-                'core.context_processors.sidebar_agents',
+                'core.context_processors.sidebar_data',
             ],
         },
     },
@@ -68,6 +68,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 20,
+        }
     }
 }
 
@@ -113,8 +116,8 @@ CELERY_TIMEZONE = 'Asia/Seoul'
 # 커스텀 유저 모델 및 인증 리다이렉션
 AUTH_USER_MODEL = 'core.User'
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = 'index'
-LOGOUT_REDIRECT_URL = 'login'
+LOGIN_REDIRECT_URL = 'dashboard' # [Refactor]
+LOGOUT_REDIRECT_URL = 'home' # [Refactor]
 
 # 메시지 저장소 설정
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'

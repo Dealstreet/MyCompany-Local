@@ -188,14 +188,29 @@
 <body>
     <!-- Top Navigation -->
     <nav class="top-nav">
-        <a href="{% url 'index' %}" class="logo">
-            🏢 {{ user.organization.name|default:"꼼망컴퍼니" }}
+        <a href="{% url 'home' %}" class="logo">
+            {% if user.is_authenticated and user.organization.logo %}
+            <img src="{{ user.organization.logo.url }}" alt="Logo"
+                style="height: 30px; width: auto; max-width: 100px; object-fit: contain;">
+            {% else %}
+            🏢
+            {% endif %}
+            {% if user.is_authenticated %}
+            {{ user.organization.name|default:"꼼망컴퍼니" }}
+            {% else %}
+            꼼망컴퍼니
+            {% endif %}
         </a>
 
         <div class="main-menu">
-            <!-- 1. 나의 원칙 (Home) -->
-            <a href="{% url 'index' %}" class="menu-item {% if active_main_menu == 'home' %}active{% endif %}">
-                나의 원칙
+            <!-- 0. 홈 (Landing) [New] -->
+            <a href="{% url 'home' %}" class="menu-item {% if active_main_menu == 'home' %}active{% endif %}">
+                홈
+            </a>
+
+            <!-- 1. 대시보드 (Old Home) -->
+            <a href="{% url 'dashboard' %}" class="menu-item {% if active_main_menu == 'dashboard' %}active{% endif %}">
+                대시보드
             </a>
 
             <!-- 2. 전자결재 -->
@@ -216,23 +231,47 @@
                 전략관리
             </a>
 
-            <!-- 5. 조직관리 [New] -->
+            <!-- 5. 커뮤니티 [New] -->
+            <a href="{% url 'post_list' %}" class="menu-item {% if active_main_menu == 'community' %}active{% endif %}">
+                커뮤니티
+            </a>
+
+            <!-- 6. 조직관리 -->
             <a href="{% url 'agent_management' %}"
                 class="menu-item {% if active_main_menu == 'organization' %}active{% endif %}">
                 조직관리
             </a>
         </div>
 
-        <div class="profile-section {% if active_main_menu == 'my_info' %}active{% endif %}"
-            onclick="location.href='{% url 'my_info' %}';" title="내 정보">
-            {% if user.profile_image %}
-            <div style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; border: 2px solid #e2e8f0;">
-                <img src="{{ user.profile_image.url }}" style="width: 100%; height: 100%; object-fit: cover;">
-            </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            {% if user.is_authenticated %}
+            <a href="{% url 'my_info' %}"
+                class="profile-section {% if active_main_menu == 'my_info' %}active{% endif %}" title="내 정보">
+                {% if user.profile_image %}
+                <div
+                    style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; border: 2px solid #e2e8f0;">
+                    <img src="{{ user.profile_image.url }}" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                {% else %}
+                <div class="profile-initial">{{ user.nickname|default:user.username|slice:":1" }}</div>
+                {% endif %}
+                <div style="font-size:14px; font-weight:600; color:#334155;">{{ user.nickname|default:user.username }}
+                </div>
+            </a>
+
+            <form action="{% url 'logout' %}" method="post" style="margin:0;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill px-3"
+                    style="font-size:13px; font-weight:600;">
+                    로그아웃
+                </button>
+            </form>
             {% else %}
-            <div class="profile-initial">{{ user.nickname|default:user.username|slice:":1" }}</div>
+            <a href="{% url 'login' %}" class="btn btn-sm btn-outline-primary rounded-pill px-3"
+                style="font-weight:600;">로그인</a>
+            <a href="{% url 'signup' %}" class="btn btn-sm btn-primary rounded-pill px-3"
+                style="font-weight:600;">회원가입</a>
             {% endif %}
-            <div style="font-size:14px; font-weight:600; color:#334155;">{{ user.nickname|default:user.username }}</div>
         </div>
     </nav>
 
@@ -240,7 +279,19 @@
     <div class="layout-container">
         <!-- Dynamic Left Sidebar -->
         <aside class="sidebar">
-            {% if active_main_menu == 'approval' %}
+            {% if active_main_menu == 'home' %}
+            <div class="sidebar-header">서비스 소개</div>
+            <a href="#service" class="sub-menu-btn">
+                <span class="icon">🤖</span> 서비스 소개
+            </a>
+            <a href="#features" class="sub-menu-btn">
+                <span class="icon">✨</span> 주요 기능
+            </a>
+            <a href="#pricing" class="sub-menu-btn">
+                <span class="icon">💳</span> 요금제
+            </a>
+
+            {% elif active_main_menu == 'approval' %}
             <div class="sidebar-header">전자결재</div>
             <a href="{% url 'approval_list' %}" class="sub-menu-btn {% if active_sub_menu == 'all' %}active{% endif %}">
                 <span class="icon">📂</span> 전체보기
@@ -297,6 +348,28 @@
                 <span class="icon">🤖</span> 자동매매 설정
             </a>
 
+            {% elif active_main_menu == 'community' %}
+            <div class="sidebar-header">커뮤니티</div>
+            <a href="{% url 'post_list' %}" class="sub-menu-btn {% if active_sub_menu == 'board' %}active{% endif %}">
+                <span class="icon">📢</span> 전체 게시판
+            </a>
+            <a href="{% url 'feed' %}" class="sub-menu-btn {% if active_sub_menu == 'feed' %}active{% endif %}">
+                <span class="icon">📱</span> 소셜 피드
+            </a>
+            <a href="{% url 'portfolio_ranking' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'ranking' %}active{% endif %}">
+                <span class="icon">🏆</span> 포트폴리오 랭킹
+            </a>
+
+            {% if user.is_superuser %}
+            <hr style="margin: 10px 20px; border-color: #e2e8f0;">
+            <div class="sidebar-header mt-2">관리자</div>
+            <a href="{% url 'master_user_list' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'master' %}active{% endif %}">
+                <span class="icon">👑</span> 마스터 대시보드
+            </a>
+            {% endif %}
+
             {% elif active_main_menu == 'organization' %}
             <!-- [New] Organization Sub Menu -->
             <div class="sidebar-header">조직 관리</div>
@@ -308,15 +381,26 @@
                 <span class="icon">👥</span> 조직도
             </a>
 
-            {% else %}
-            <!-- Default (Home) -->
-            <div class="sidebar-header">바로가기</div>
-            <a href="{% url 'messenger' %}"
-                class="sub-menu-btn {% if active_sub_menu == 'messenger' %}active{% endif %}">
-                <span class="icon">💬</span> AI 메신저
+            {% elif active_main_menu == 'dashboard' %}
+            <!-- Dashboard Sidebar (Old Home) -->
+            <div class="sidebar-header">나의 원칙 & 즐겨찾기</div>
+            <a href="{% url 'dashboard' %}" class="sub-menu-btn active">
+                <span class="icon">🏠</span> 대시보드
             </a>
-            <!-- Org Chart Moved to Organization Menu, but kept here for legacy or quick access if needed? -->
-            <!-- Removing it from here as requested to move it -->
+            <hr style="margin: 10px 20px; border-color: #e2e8f0;">
+            <div class="sidebar-header">즐겨찾기</div>
+            {% for fav in favorites %}
+            <a href="{% url fav.url_name %}" class="sub-menu-btn">
+                <span class="icon">{{ fav.icon }}</span> {{ fav.name }}
+            </a>
+            {% empty %}
+            <div class="px-3 py-2 text-muted" style="font-size:12px;">즐겨찾기가 없습니다.</div>
+            {% endfor %}
+            <div class="mt-2 text-center" style="display:none;">
+                <!-- Hidden trigger for adding favorites if we want to restore later -->
+                <button class="btn btn-sm btn-link text-decoration-none" data-bs-toggle="modal"
+                    data-bs-target="#addFavoriteModal">+ 추가</button>
+            </div>
             {% endif %}
         </aside>
 

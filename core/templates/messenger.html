@@ -348,7 +348,7 @@
         </div>
         {% endif %}
 
-        {% for msg in messages %}
+        {% for msg in chat_messages %}
         <div class="message-row {% if msg.role == 'user' %}sent{% else %}received{% endif %}">
             <div class="bubble">
                 {% if msg.content == '[PROCESSING]' %}

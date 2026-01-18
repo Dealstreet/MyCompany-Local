@@ -18,9 +18,40 @@
                 {% csrf_token %}
 
                 {% for field in form %}
+                {% if field.name == 'model_name' %}
+                <!-- Hide model_name (Admin Only) -->
+                <div style="display:none;">{{ field }}</div>
+                {% else %}
                 <div class="mb-4">
                     <label class="form-label fw-bold small text-muted">{{ field.label }}</label>
+
+                    {% if field.name == 'employee_id' %}
+                    <!-- Read-only Employee ID -->
+                    <div class="input-group">
+                        <input type="text" class="form-control bg-light" value="{{ field.value|default:'' }}" readonly>
+                        <!-- Hidden input to actually submit the value if needed, or rely on instance -->
+                        <div style="display:none;">{{ field }}</div>
+                    </div>
+                    <div class="form-text text-muted">사번은 자동 배정되며 수정할 수 없습니다.</div>
+
+                    {% elif field.name == 'managed_stocks' %}
+                    <!-- Managed Stocks Checkboxes -->
+                    <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
+                        {% for checkbox in field %}
+                        <div class="form-check">
+                            {{ checkbox.tag }}
+                            <label class="form-check-label" for="{{ checkbox.id_for_label }}">
+                                {{ checkbox.choice_label }}
+                            </label>
+                        </div>
+                        {% empty %}
+                        <span class="text-muted small">등록된 종목이 없습니다.</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
                     {{ field }}
+                    {% endif %}
+
                     {% if field.help_text %}
                     <div class="form-text">{{ field.help_text }}</div>
                     {% endif %}
@@ -30,6 +61,7 @@
                     </div>
                     {% endif %}
                 </div>
+                {% endif %}
                 {% endfor %}
 
                 <div class="d-flex justify-content-end gap-2 mt-5">

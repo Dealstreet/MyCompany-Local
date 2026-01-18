@@ -1,9 +1,8 @@
-# core/context_processors.py
-from .models import Agent
+from .models import Agent, UserFavorite
 
-def sidebar_agents(request):
+def sidebar_data(request):
+    context = {'agents': [], 'favorites': []}
     if request.user.is_authenticated and request.user.organization:
-        return {
-            'agents': Agent.objects.filter(organization=request.user.organization)
-        }
-    return {'agents': []}
+        context['agents'] = Agent.objects.filter(organization=request.user.organization)
+        context['favorites'] = UserFavorite.objects.filter(user=request.user).order_by('display_order')
+    return context

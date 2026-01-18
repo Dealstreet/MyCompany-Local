@@ -30,14 +30,18 @@
                         </span>
                     </div>
 
-                    <h5 class="fw-bold mb-1">{{ agent.name }} <span class="text-muted small fw-normal">{{ agent.position
-                            }}</span></h5>
+                    <h5 class="fw-bold mb-1">{{ agent.name }} <span class="text-muted small fw-normal">{{ agent.position }}</span></h5>
                     <p class="text-secondary mb-2 small">{{ agent.department_obj.name|default:"소속미정" }}</p>
 
-                    <div class="bg-light rounded p-2 mb-3 w-100 text-start">
-                        <small class="d-block text-truncate text-muted" title="{{ agent.role }}">
-                            <strong>Role:</strong> {{ agent.role }}
-                        </small>
+                    <div class="bg-light rounded p-2 mb-3 w-100 text-start" style="min-height: 60px;">
+                        <small class="d-block text-muted mb-1"><strong>담당 종목</strong></small>
+                        <div class="d-flex flex-wrap gap-1">
+                            {% for stock in agent.managed_stocks.all %}
+                            <span class="badge bg-white text-dark border">{{ stock.name }}</span>
+                            {% empty %}
+                            <span class="text-muted small">-</span>
+                            {% endfor %}
+                        </div>
                     </div>
 
                     <div class="mt-auto d-flex gap-2 w-100">

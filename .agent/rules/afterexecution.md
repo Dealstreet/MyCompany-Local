@@ -34,4 +34,13 @@ trigger: always_on
 - Only present the code once it has passed the verification step.
 - Explicitly state: "Verified: The server started successfully on [Port]" or "Verified: Script executed with expected output."
 
-## 5. 코드 실행을 위한 계획(.md)과 결과 설명은 영어가 아닌 한국어로 하라.
+## 5. Language of Implementation plan and results is Korean, not English.
+
+## 6.Rule: Always keep simple variable substitutions on a single line.
+
+[Example]
+Incorrect:
+<span class="text-muted">{{ agent.position
+    }}</span>
+Correct:
+<span class="text-muted">{{ agent.position }}</span>

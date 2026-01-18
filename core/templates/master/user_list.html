@@ -62,10 +62,16 @@
                                     onsubmit="return confirm('상태를 변경하시겠습니까?');">
                                     {% csrf_token %}
                                     {% if u.is_active %}
-                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" {% if
-                                        u.is_superuser %}disabled title="최고 관리자는 비활성화 불가" {% endif %}>
+                                    {% if u.is_superuser %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                                        disabled title="최고 관리자는 비활성화 불가">
                                         정지 (비활성화)
                                     </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                                        정지 (비활성화)
+                                    </button>
+                                    {% endif %}
                                     {% else %}
                                     <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">
                                         활성화

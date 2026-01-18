@@ -1,6 +1,3 @@
-import datetime
-import re
-import json
 import yfinance as yf
 from itertools import groupby
 from operator import attrgetter
@@ -9,6 +6,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth import login # [New]
 from django.contrib import messages # [Fix] Import messages
 from django.core.paginator import Paginator
 from django.views.decorators.csrf import csrf_exempt
@@ -18,7 +16,7 @@ from datetime import datetime, time
 from django.http import JsonResponse, HttpResponse
 
 from .models import User, Organization, Department, DailySnapshot, Transaction, Stock, InterestStock, Agent, Message, Approval, InvestmentLog, Account, TradeNotification, UserFavorite, PortfolioDisclosure, Post, Follow
-from .forms import AgentForm, UserChangeForm, OrganizationForm
+from .forms import AgentForm, UserChangeForm, OrganizationForm, SignUpForm # [New]
 from .services import TransactionService, FinancialService
 from .tasks import create_approval_draft, create_daily_snapshot
 from .utils import parse_mirae_sms, format_approval_content, get_agent_by_stock
@@ -67,26 +65,46 @@ def get_sidebar_agents(user):
         return Agent.objects.filter(organization=user.organization)
     return Agent.objects.none()
 
+def signup(request):
+    if request.method == 'POST':
+        # [Design] Use SignUpForm
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            # Auto-login after signup
+            login(request, user)
+            messages.success(request, "회원가입이 완료되었습니다.")
+            return redirect('dashboard') # [Refactor]
+    else:
+        form = SignUpForm()
+    return render(request, 'signup.html', {'form': form})
+
+def home(request):
+    # Landing Page
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return render(request, 'home.html')
+
 @login_required
-def index(request):
+def dashboard(request):
     agents = get_sidebar_agents(request.user)
     if request.method == 'POST':
         principles = request.POST.get('principles', '')
         request.user.principles = principles
         request.user.save()
         messages.success(request, "나의 원칙이 저장되었습니다.")
-        return redirect('index')
+        return redirect('dashboard')
 
     today = timezone.now().date()
     
     # [Favorites Logic]
     favorites = UserFavorite.objects.filter(user=request.user)
     
-    return render(request, 'index.html', {
+    return render(request, 'index.html', { # [Note] Keep index.html as the internal dashboard template
         'agents': agents,
         'today': today,
         'favorites': favorites,
-        'active_main_menu': 'home',
+        'active_main_menu': 'dashboard', # [Refactor]
         'active_sub_menu': 'home'
     })
 
@@ -183,14 +201,14 @@ def add_favorite(request):
             UserFavorite.objects.create(user=request.user, name=name, url_name=url_name, icon=icon, display_order=999)
             messages.success(request, "즐겨찾기가 추가되었습니다.")
             
-    return redirect('index')
+    return redirect('dashboard') # [Refactor]
 
 @login_required
 def delete_favorite(request, pk):
     fav = get_object_or_404(UserFavorite, pk=pk, user=request.user)
     fav.delete()
     messages.success(request, "즐겨찾기가 삭제되었습니다.")
-    return redirect('index')
+    return redirect('dashboard') # [Refactor]
 
 @csrf_exempt
 @login_required
@@ -282,9 +300,9 @@ def messenger(request, agent_id=None):
     return render(request, 'messenger.html', {
         'agents': agents, 
         'active_agent': active_agent,
-        'messages': messages_list,
+        'chat_messages': messages_list,
         'initial_greeting': initial_greeting,
-        'active_main_menu': 'home',
+        'active_main_menu': 'dashboard', # [Refactor]
         'active_sub_menu': 'messenger'
     })
 
@@ -1476,16 +1494,37 @@ def my_info(request):
         # 3. Update Portfolio Disclosure
         elif 'update_disclosure' in request.POST:
             public_stock_ids = request.POST.getlist('public_stocks')
-            my_interest_stocks = InterestStock.objects.filter(user=user)
             
-            for interest in my_interest_stocks:
-                stock = interest.stock
-                is_public = str(stock.id) in public_stock_ids
-                PortfolioDisclosure.objects.update_or_create(
-                    user=user, 
-                    stock=stock, 
-                    defaults={'is_public': is_public}
-                )
+            # [Fix] Must use the same logic as GET to identify held stocks
+            # Calculate held stocks from transactions
+            portfolio_map = {}
+            txs = Transaction.objects.filter(
+                organization=user.organization, 
+                related_asset__isnull=False
+            ).select_related('related_asset')
+
+            for tx in txs:
+                sid = tx.related_asset.id
+                if sid not in portfolio_map:
+                    portfolio_map[sid] = {'stock': tx.related_asset, 'quantity': 0}
+                
+                if tx.transaction_type == 'BUY':
+                    portfolio_map[sid]['quantity'] += tx.quantity
+                elif tx.transaction_type == 'SELL':
+                    portfolio_map[sid]['quantity'] -= abs(tx.quantity)
+            
+            # Iterate only currently held stocks
+            for sid, p in portfolio_map.items():
+                if p['quantity'] > 0:
+                    stock = p['stock']
+                    is_public = str(stock.id) in public_stock_ids
+                    
+                    PortfolioDisclosure.objects.update_or_create(
+                        user=user, 
+                        stock=stock, 
+                        defaults={'is_public': is_public}
+                    )
+            
             messages.success(request, "포트폴리오 공개 설정이 저장되었습니다.")
             return redirect('my_info')
 
@@ -1493,17 +1532,44 @@ def my_info(request):
     user_form = UserChangeForm(instance=user)
     org_form = OrganizationForm(instance=organization)
 
-    # Prepare Stock List
-    my_stocks = InterestStock.objects.filter(user=user).select_related('stock')
-    
+    # Prepare Stock List (Based on Actual Portfolio Holdings)
+    # Refactored: Use Transaction aggregation instead of InterestStock
+    portfolio_map = {}
+    txs = Transaction.objects.filter(
+        organization=user.organization, 
+        related_asset__isnull=False
+    ).select_related('related_asset').order_by('timestamp')
+
+    for tx in txs:
+        sid = tx.related_asset.id
+        if sid not in portfolio_map:
+            portfolio_map[sid] = {'stock': tx.related_asset, 'quantity': 0}
+        
+        if tx.transaction_type == 'BUY':
+            portfolio_map[sid]['quantity'] += tx.quantity
+        elif tx.transaction_type == 'SELL':
+            # Note: Quantity in SELL transaction is negative in logic or positive?
+            # In investment_management: qty_sold = abs(tx.quantity). 
+            # Let's check Transaction model usage. Usually it is stored as is.
+            # investment_management logic: p['quantity'] -= abs(tx.quantity)
+            portfolio_map[sid]['quantity'] -= abs(tx.quantity)
+
     stock_disclosure_list = []
-    for item in my_stocks:
-        disclosure = PortfolioDisclosure.objects.filter(user=user, stock=item.stock).first()
-        is_public = disclosure.is_public if disclosure else True
-        stock_disclosure_list.append({
-            'stock': item.stock,
-            'is_public': is_public
-        })
+    for sid, p in portfolio_map.items():
+        if p['quantity'] > 0:
+            stock = p['stock']
+            disclosure = PortfolioDisclosure.objects.filter(user=user, stock=stock).first()
+            is_public = disclosure.is_public if disclosure else True # Default to True? Or False?
+            # Requirement: "Restricting access... to only superusers." -> No.
+            # Requirement: "Only users who have disclosed at least one stock"
+            # Default should probably be False for privacy, or True if opt-out? 
+            # Existing code: is_public = disclosure.is_public if disclosure else True
+            # Let's keep existing default.
+            
+            stock_disclosure_list.append({
+                'stock': stock,
+                'is_public': is_public
+            })
 
     # [New] Social Stats
     followers_count = Follow.objects.filter(following=user).count()
@@ -1706,6 +1772,9 @@ def portfolio_ranking(request):
         
         portfolio_map = {}
         for log in logs:
+            if not log.stock:
+                continue
+                
             sid = log.stock.id
             if sid not in portfolio_map:
                 portfolio_map[sid] = {'qty': 0, 'cost': 0}
@@ -1720,6 +1789,11 @@ def portfolio_ranking(request):
                     portfolio_map[sid]['cost'] -= (log.amount * avg_price)
                     portfolio_map[sid]['qty'] -= log.amount
 
+        # [Optimization] Pre-fetch stock prices
+        # We need prices for all stocks in logs
+        all_stock_ids = set([l.stock.id for l in logs if l.stock])
+        stock_prices = {s.id: s.current_price for s in Stock.objects.filter(id__in=all_stock_ids)}
+        
         # Value Calculation
         for sid, data in portfolio_map.items():
             qty = data['qty']
@@ -1727,7 +1801,7 @@ def portfolio_ranking(request):
             
             if qty > 0:
                 try:
-                    current_price = Stock.objects.get(id=sid).current_price
+                    current_price = stock_prices.get(sid, 0)
                     val = qty * current_price
                     
                     stock_valuation += val

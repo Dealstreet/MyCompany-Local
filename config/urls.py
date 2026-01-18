@@ -12,7 +12,8 @@ urlpatterns = [
 
     # 로그인 / 로그아웃
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
+    path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('signup/', views.signup, name='signup'), # [New]
     path('my-info/', views.my_info, name='my_info'), # [New]
 
     # 9. 조직 관리 (직원 관리 + 조직도)
@@ -39,10 +40,11 @@ urlpatterns = [
     path('community/ranking/', views.portfolio_ranking, name='portfolio_ranking'),
 
 
-    # 1. 메인 홈
-    path('', views.index, name='index'),
+    # 41. 메인 홈 (Landing & Dashboard)
+    path('', views.home, name='home'), # [New] Public Landing
+    path('dashboard/', views.dashboard, name='dashboard'), # [Refactor] Private Dashboard
 
-    # 2. 메신저 (AI 직원 대화)
+    # 45. 메신저 (AI 직원 대화)
     path('messenger/', views.messenger, name='messenger'),
     path('messenger/<int:agent_id>/', views.messenger, name='messenger'),
 
