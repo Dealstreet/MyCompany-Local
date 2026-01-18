@@ -90,9 +90,17 @@ urlpatterns = [
     path('api/stock/update/', views.update_all_stocks_api, name='update_all_stocks_api'),
 
     # [New] Backtest
-    path('backtest/', views_backtest.backtest_dashboard, name='backtest_dashboard'),
+    # [New] Strategy Management (Split)
+    path('strategy/list/', views_backtest.strategy_list_view, name='strategy_list'),
+    path('strategy/builder/', views_backtest.strategy_builder_view, name='strategy_builder'),
+    path('strategy/builder/<int:pk>/', views_backtest.strategy_builder_view, name='strategy_builder_edit'),
+    path('backtest/runner/', views_backtest.backtest_runner_view, name='backtest_runner'),
     path('core/backtest/run/', views_backtest.run_backtest_api, name='run_backtest_api'),
     path('core/backtest/export/', views_backtest.export_backtest_csv, name='export_backtest_csv'),
+    path('core/strategy/save/', views_backtest.save_strategy_api, name='save_strategy_api'),
+    path('core/strategy/list/', views_backtest.list_strategies_api, name='list_strategies_api'),
+    path('core/strategy/<int:pk>/load/', views_backtest.load_strategy_api, name='load_strategy_api'),
+    path('core/strategy/<int:pk>/delete/', views_backtest.delete_strategy_api, name='delete_strategy_api'),
 
     # 13. 소셜 (피드 & 팔로우) [New]
     path('community/feed/', views.feed, name='feed'),

@@ -494,3 +494,21 @@ class Strategy(models.Model):
 
     def __str__(self):
         return self.name
+
+class Strategy(models.Model):
+    """
+    사용자가 생성한 백테스팅 전략
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='strategies')
+    name = models.CharField(max_length=100)
+    ticker = models.CharField(max_length=20, blank=True, null=True, help_text="대상 종목 코드 (Optional)")
+    logic = models.JSONField(default=dict, help_text="전략 로직 (매수/매도/DCA)")
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+
+    class Meta:
+        ordering = ['-updated_at']

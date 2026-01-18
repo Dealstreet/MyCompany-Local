@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ user.organization.name }}{% endblock %}</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -98,6 +97,12 @@
             flex-shrink: 0;
         }
 
+        /* [수정됨] 홈 화면일 때 사이드바 스타일 정의 */
+        .sidebar.home-mode {
+            background-color: #3b82f6;
+            border-right: none;
+        }
+
         .sidebar-header {
             padding: 0 20px 20px 20px;
             font-size: 13px;
@@ -186,7 +191,6 @@
 </head>
 
 <body>
-    <!-- Top Navigation -->
     <nav class="top-nav">
         <a href="{% url 'home' %}" class="logo">
             {% if user.is_authenticated and user.organization.logo %}
@@ -198,49 +202,46 @@
             {% if user.is_authenticated %}
             {{ user.organization.name|default:"꼼망컴퍼니" }}
             {% else %}
-            꼼망컴퍼니
+            STEADY
             {% endif %}
         </a>
 
         <div class="main-menu">
-            <!-- 0. 홈 (Landing) [New] -->
+            {% if not user.is_authenticated %}
             <a href="{% url 'home' %}" class="menu-item {% if active_main_menu == 'home' %}active{% endif %}">
                 홈
             </a>
+            {% endif %}
 
-            <!-- 1. 대시보드 (Old Home) -->
+            {% if user.is_authenticated %}
             <a href="{% url 'dashboard' %}" class="menu-item {% if active_main_menu == 'dashboard' %}active{% endif %}">
                 대시보드
             </a>
 
-            <!-- 2. 전자결재 -->
             <a href="{% url 'approval_list' %}"
                 class="menu-item {% if active_main_menu == 'approval' %}active{% endif %}">
                 전자결재
             </a>
 
-            <!-- 3. 포트폴리오 -->
             <a href="{% url 'investment_management' %}"
                 class="menu-item {% if active_main_menu == 'portfolio' %}active{% endif %}">
                 포트폴리오
             </a>
 
-            <!-- 4. 전략관리 -->
-            <a href="{% url 'backtest_dashboard' %}"
+            <a href="{% url 'strategy_list' %}"
                 class="menu-item {% if active_main_menu == 'strategy' %}active{% endif %}">
                 전략관리
             </a>
 
-            <!-- 5. 커뮤니티 [New] -->
             <a href="{% url 'post_list' %}" class="menu-item {% if active_main_menu == 'community' %}active{% endif %}">
                 커뮤니티
             </a>
 
-            <!-- 6. 조직관리 -->
             <a href="{% url 'agent_management' %}"
                 class="menu-item {% if active_main_menu == 'organization' %}active{% endif %}">
                 조직관리
             </a>
+            {% endif %}
         </div>
 
         <div style="display:flex; gap:10px; align-items:center;">
@@ -275,21 +276,33 @@
         </div>
     </nav>
 
-    <!-- Layout Container -->
     <div class="layout-container">
-        <!-- Dynamic Left Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar {% if active_main_menu == 'home' %}home-mode{% endif %}">
+
             {% if active_main_menu == 'home' %}
-            <div class="sidebar-header">서비스 소개</div>
-            <a href="#service" class="sub-menu-btn">
+            <div class="sidebar-header" style="color: #bfdbfe;">서비스 소개</div>
+            <a href="#service" class="sub-menu-btn home-menu-btn">
                 <span class="icon">🤖</span> 서비스 소개
             </a>
-            <a href="#features" class="sub-menu-btn">
-                <span class="icon">✨</span> 주요 기능
+            <a href="#features" class="sub-menu-btn home-menu-btn">
+                <span class="icon">✨</span> 장단점
             </a>
-            <a href="#pricing" class="sub-menu-btn">
+            <a href="#pricing" class="sub-menu-btn home-menu-btn">
                 <span class="icon">💳</span> 요금제
             </a>
+
+            <style>
+                .home-menu-btn {
+                    color: white !important;
+                    opacity: 0.9;
+                }
+
+                .home-menu-btn:hover {
+                    background-color: rgba(255, 255, 255, 0.1) !important;
+                    opacity: 1;
+                    border-left-color: white !important;
+                }
+            </style>
 
             {% elif active_main_menu == 'approval' %}
             <div class="sidebar-header">전자결재</div>
@@ -339,11 +352,19 @@
 
             {% elif active_main_menu == 'strategy' %}
             <div class="sidebar-header">퀀트 전략</div>
-            <a href="{% url 'backtest_dashboard' %}"
-                class="sub-menu-btn {% if active_sub_menu == 'backtest' %}active{% endif %}">
-                <span class="icon">📉</span> 백테스팅/빌더
+            <a href="{% url 'strategy_list' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'list' %}active{% endif %}">
+                <span class="icon">📂</span> 나의 전략
             </a>
-            <!-- Future features -->
+            <a href="{% url 'strategy_builder' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'builder' %}active{% endif %}">
+                <span class="icon">🛠️</span> 전략 빌더
+            </a>
+            <a href="{% url 'backtest_runner' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'runner' %}active{% endif %}">
+                <span class="icon">🚀</span> 백테스팅
+            </a>
+
             <a href="#" class="sub-menu-btn" style="opacity:0.5; cursor:not-allowed;" title="준비 중">
                 <span class="icon">🤖</span> 자동매매 설정
             </a>
@@ -371,7 +392,6 @@
             {% endif %}
 
             {% elif active_main_menu == 'organization' %}
-            <!-- [New] Organization Sub Menu -->
             <div class="sidebar-header">조직 관리</div>
             <a href="{% url 'agent_management' %}"
                 class="sub-menu-btn {% if active_sub_menu == 'agents' %}active{% endif %}">
@@ -382,7 +402,6 @@
             </a>
 
             {% elif active_main_menu == 'dashboard' %}
-            <!-- Dashboard Sidebar (Old Home) -->
             <div class="sidebar-header">나의 원칙 & 즐겨찾기</div>
             <a href="{% url 'dashboard' %}" class="sub-menu-btn active">
                 <span class="icon">🏠</span> 대시보드
@@ -397,19 +416,20 @@
             <div class="px-3 py-2 text-muted" style="font-size:12px;">즐겨찾기가 없습니다.</div>
             {% endfor %}
             <div class="mt-2 text-center" style="display:none;">
-                <!-- Hidden trigger for adding favorites if we want to restore later -->
                 <button class="btn btn-sm btn-link text-decoration-none" data-bs-toggle="modal"
                     data-bs-target="#addFavoriteModal">+ 추가</button>
             </div>
             {% endif %}
         </aside>
 
-        <main class="content-wrapper">
-            {% block content %}{% endblock %}
+        <main class="content-wrapper" style="display:flex; flex-direction:column;">
+            <div style="flex:1;">
+                {% block content %}{% endblock %}
+            </div>
+            {% include 'partials/footer.html' %}
         </main>
     </div>
 
-    <!-- Global Message Modal (Center Popup) -->
     {% if messages %}
     <div id="globalMsgModal" class="msg-modal-overlay">
         <div class="msg-modal-content">
@@ -494,7 +514,6 @@
     </script>
     {% endif %}
 
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 

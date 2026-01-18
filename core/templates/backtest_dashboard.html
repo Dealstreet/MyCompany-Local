@@ -4,68 +4,113 @@
 {% block title %}📈 전략 백테스팅{% endblock %}
 
 {% block content %}
-<div class="row">
-    <!-- Left: Strategy Builder -->
-    <div class="col-md-6">
+<div class="row g-3">
+    <!-- Left: My Strategies -->
+    <div class="col-lg-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">💾 내 전략 목록</h6>
+                <button class="btn btn-sm btn-light py-0" onclick="showSaveModal()">+ 저장</button>
+            </div>
+            <div class="card-body p-0" style="overflow-y: auto; max-height: 800px;">
+                <div class="list-group list-group-flush" id="strategyList">
+                    {% for strategy in my_strategies %}
+                    <div class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                        id="strategy-row-{{ strategy.id }}">
+                        <div style="cursor: pointer;" onclick="loadStrategy({{ strategy.id }})"
+                            class="d-flex flex-column text-truncate">
+                            <span class="fw-bold">{{ strategy.name }}</span>
+                            <small class="text-muted" style="font-size: 0.8rem;">
+                                {{ strategy.ticker|default:"-" }} | {{ strategy.updated_at|date:"m/d H:i" }}
+                            </small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger border-0"
+                            onclick="deleteStrategy({{ strategy.id }}, event)">
+                            🗑️
+                        </button>
+                    </div>
+                    {% empty %}
+                    <div class="text-center p-4 text-muted small">
+                        저장된 전략이 없습니다.<br>
+                        나만의 전략을 만들어보세요!
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center: Strategy Builder -->
+    <div class="col-lg-5">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">🛠️ 전략 빌더</h5>
-                <button class="btn btn-sm btn-outline-light" onclick="resetStrategy()">초기화</button>
+                <div>
+                    <button class="btn btn-sm btn-outline-light me-1" onclick="resetStrategy()">초기화</button>
+                    <!-- Current Strategy Info -->
+                    <span id="currentStrategyLabel" class="badge bg-secondary ms-2" style="display:none;"></span>
+                    <input type="hidden" id="currentStrategyId">
+                </div>
             </div>
             <div class="card-body" style="overflow-y: auto; max-height: 800px;">
                 <form id="strategyForm">
-                    <!-- Target Stock & Name -->
+                    <!-- Target Stock & Name (Hidden/Auto) -->
+                    <!-- Stock selection is moved to Right panel for simulation context, but Ticker is saved with strategy -->
+
                     <div class="mb-3">
-                        <label class="form-label">전략 이름</label>
-                        <input type="text" class="form-control" id="strategyName" placeholder="예: 골든크로스 전략" required>
+                        <label class="form-label text-muted small">현재 편집 중인 전략 설정</label>
+                        <div class="d-flex gap-2">
+                            <input type="text" class="form-control" id="strategyNameInput" placeholder="전략 이름 (저장 시 사용)"
+                                readonly style="background-color: #f8f9fa;">
+                        </div>
                     </div>
 
                     <!-- Buy Conditions -->
                     <div class="card mb-3 border-danger">
-                        <div class="card-header bg-danger text-white">매수 조건 (Logic)</div>
-                        <div class="card-body" id="buyLogicContainer">
+                        <div class="card-header bg-danger text-white py-2">매수 조건 (Logic)</div>
+                        <div class="card-body p-2" id="buyLogicContainer">
                             <!-- Helper Text -->
-                            <p class="text-muted small">아래 비어있는 공간에 '조건 그룹'을 추가하여 매수 타이밍을 정의하세요.</p>
-                            <!-- Root Node will be injected here via JS -->
+                            <p class="text-muted small mb-2">조건 그룹을 추가하여 매수 타이밍을 정의하세요.</p>
+                            <!-- Root Node -->
                         </div>
                     </div>
 
                     <!-- Sell Conditions -->
                     <div class="card mb-3 border-primary">
-                        <div class="card-header bg-primary text-white">매도 조건 (Logic)</div>
-                        <div class="card-body" id="sellLogicContainer">
-                            <p class="text-muted small">매도 조건이 없으면 매수 후 계속 보유합니다.</p>
+                        <div class="card-header bg-primary text-white py-2">매도 조건 (Logic)</div>
+                        <div class="card-body p-2" id="sellLogicContainer">
+                            <p class="text-muted small mb-0">매도 조건이 없으면 매수 후 보유합니다.</p>
                         </div>
                     </div>
 
                     <!-- DCA Config -->
                     <div class="card mb-3 border-secondary">
-                        <div class="card-header">
-                            <div class="form-check form-switch">
+                        <div class="card-header py-2">
+                            <div class="form-check form-switch mb-0">
                                 <input class="form-check-input" type="checkbox" id="dcaEnabled" onchange="toggleDCA()">
                                 <label class="form-check-label" for="dcaEnabled">💰 적립식 투자(DCA) 설정</label>
                             </div>
                         </div>
-                        <div class="card-body" id="dcaConfigPanel" style="display:none;">
+                        <div class="card-body p-2" id="dcaConfigPanel" style="display:none;">
                             <div class="row g-2">
                                 <div class="col-md-6">
-                                    <label class="form-label">방식</label>
-                                    <select class="form-select" id="dcaType">
+                                    <label class="form-label small">방식</label>
+                                    <select class="form-select form-select-sm" id="dcaType">
                                         <option value="fixed_amount">매회 고정 금액 (원)</option>
                                         <option value="fixed_quantity">매회 고정 수량 (주)</option>
                                     </select>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">값 (금액/수량)</label>
-                                    <input type="number" class="form-control" id="dcaAmount" value="100000">
+                                    <label class="form-label small">값</label>
+                                    <input type="number" class="form-control form-control-sm" id="dcaAmount"
+                                        value="100000">
                                 </div>
                                 <div class="col-md-12">
-                                    <label class="form-label">주기</label>
-                                    <select class="form-select" id="dcaInterval">
+                                    <label class="form-label small">주기</label>
+                                    <select class="form-select form-select-sm" id="dcaInterval">
                                         <option value="monthly">매월 1일</option>
                                         <option value="weekly">매주</option>
                                         <option value="daily">매일</option>
-                                        <option value="condition_based">조건 감지시(구현 예정)</option>
                                     </select>
                                 </div>
                             </div>
@@ -77,80 +122,79 @@
     </div>
 
     <!-- Right: Backtest Control & Results -->
-    <div class="col-md-6">
+    <div class="col-lg-4">
         <div class="card shadow-sm mb-3">
-            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                <span>⚙️ 시뮬레이션 설정</span>
+            <div class="card-header bg-success text-white">
+                <span class="fw-bold">⚙️ 시뮬레이션 설정</span>
             </div>
             <div class="card-body">
                 <div class="row g-2">
-                    <div class="col-md-6">
-                        <label class="form-label">대상 종목</label>
+                    <div class="col-12">
+                        <label class="form-label small">대상 종목</label>
                         <select class="form-select" id="stockSelect">
                             {% for stock in stocks %}
                             <option value="{{ stock.code }}">{{ stock.name }} ({{ stock.code }})</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">초기 자본금</label>
+                    <div class="col-12">
+                        <label class="form-label small">초기 자본금</label>
                         <input type="number" class="form-control" id="initialCapital" value="10000000">
                     </div>
                 </div>
                 <div class="d-grid mt-3">
-                    <button class="btn btn-success btn-lg" onclick="runBacktest()">🚀 백테스트 실행</button>
+                    <button class="btn btn-success fw-bold" onclick="runBacktest()">🚀 백테스트 실행</button>
                 </div>
             </div>
         </div>
 
         <!-- Result Stats -->
         <div id="resultStats" class="row g-2 mb-3" style="display:none;">
-            <div class="col-md-2">
-                <div class="card text-center text-white bg-primary">
-                    <div class="card-body p-2">
-                        <h6 class="card-title" style="font-size:0.8rem;">최종 자산</h6>
-                        <p class="card-text fw-bold" id="resFinalCapital">-</p>
+            <div class="col-6">
+                <div class="card text-center text-white bg-primary h-100">
+                    <div class="card-body p-2 d-flex flex-column justify-content-center">
+                        <h6 class="card-title my-0" style="font-size:0.75rem;">최종 자산</h6>
+                        <span class="fw-bold" id="resFinalCapital" style="font-size:0.9rem">-</span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-2">
-                <div class="card text-center text-white bg-success">
+            <div class="col-3">
+                <div class="card text-center text-white bg-success h-100">
                     <div class="card-body p-2">
-                        <h6 class="card-title" style="font-size:0.8rem;">수익률</h6>
-                        <p class="card-text fw-bold" id="resReturn">-</p>
+                        <h6 class="card-title my-0" style="font-size:0.75rem;">수익률</h6>
+                        <span class="fw-bold" id="resReturn">-</span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-2">
-                <div class="card text-center text-white bg-danger">
+            <div class="col-3">
+                <div class="card text-center text-white bg-danger h-100">
                     <div class="card-body p-2">
-                        <h6 class="card-title" style="font-size:0.8rem;">MDD</h6>
-                        <p class="card-text fw-bold" id="resMdd">-</p>
+                        <h6 class="card-title my-0" style="font-size:0.75rem;">MDD</h6>
+                        <span class="fw-bold" id="resMdd">-</span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-2">
+            <div class="col-4">
                 <div class="card text-center bg-light">
                     <div class="card-body p-2">
-                        <h6 class="card-title" style="font-size:0.8rem;">총 거래(진입/청산)</h6>
-                        <p class="card-text fw-bold" id="resTrades">-</p>
+                        <small>총 거래</small><br>
+                        <span class="fw-bold" id="resTrades">-</span>
                     </div>
                 </div>
             </div>
-            <!-- New KPIs -->
-            <div class="col-md-2">
+            <div class="col-4">
                 <div class="card text-center text-white bg-warning">
                     <div class="card-body p-2">
-                        <h6 class="card-title" style="font-size:0.8rem;">승률</h6>
-                        <p class="card-text fw-bold" id="resWinRate">-</p>
+                        <small>승률</small><br>
+                        <span class="fw-bold" id="resWinRate">-</span>
                     </div>
                 </div>
             </div>
-            <div class="col-md-2">
+            <div class="col-4">
                 <div class="card text-center text-white bg-info">
                     <div class="card-body p-2">
-                        <h6 class="card-title" style="font-size:0.8rem;">손익비</h6>
-                        <p class="card-text fw-bold" id="resProfitFactor">-</p>
+                        <small>손익비</small><br>
+                        <span class="fw-bold" id="resProfitFactor">-</span>
                     </div>
                 </div>
             </div>
@@ -158,40 +202,59 @@
 
         <!-- Chart -->
         <div class="card mb-3">
-            <div class="card-body position-relative">
-                <canvas id="equityChart" style="max-height: 400px;"></canvas>
+            <div class="card-body position-relative p-2">
+                <canvas id="equityChart" style="max-height: 250px;"></canvas>
             </div>
         </div>
 
         <!-- Trade Log -->
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>📜 거래 내역</span>
+            <div class="card-header d-flex justify-content-between align-items-center py-2">
+                <small class="fw-bold">📜 거래 내역</small>
                 <form id="csvExportForm" method="POST" action="{% url 'export_backtest_csv' %}" target="_blank">
                     <input type="hidden" name="ticker" id="csvTicker">
                     <input type="hidden" name="capital" id="csvCapital">
                     <input type="hidden" name="strategy_json" id="csvStrategy">
-                    <button type="submit" class="btn btn-sm btn-outline-secondary" id="btnDownloadCsv" disabled>
-                        💾 매매일지 다운로드
+                    <button type="submit" class="btn btn-xs btn-outline-secondary py-0" id="btnDownloadCsv" disabled>
+                        💾 CSV
                     </button>
                 </form>
             </div>
-            <div class="card-body p-0" style="overflow-y: auto; max-height: 300px;">
-                <table class="table table-sm table-striped mb-0 text-center" style="font-size: 0.9em;">
+            <div class="card-body p-0" style="overflow-y: auto; max-height: 250px;">
+                <table class="table table-sm table-striped mb-0 text-center" style="font-size: 0.8rem;">
                     <thead class="table-light sticky-top">
                         <tr>
                             <th>날짜</th>
                             <th>유형</th>
                             <th>가격</th>
                             <th>수량</th>
-                            <th>금액</th>
-                            <th>잔고</th>
                         </tr>
                     </thead>
-                    <tbody id="tradeLogBody">
-                        <!-- JS injected -->
-                    </tbody>
+                    <tbody id="tradeLogBody"></tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Save Strategy -->
+<div class="modal fade" id="saveStrategyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">전략 저장하기</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">전략 이름</label>
+                    <input type="text" class="form-control" id="modalStrategyName" placeholder="예: 비트코인 20일 이평 돌파">
+                </div>
+                <p class="text-muted small">현재 빌더에 설정된 로직이 저장됩니다.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSaveStrategy()">저장</button>
             </div>
         </div>
     </div>
@@ -202,8 +265,8 @@
     <div class="logic-node border rounded p-2 mb-2 bg-light">
         <div class="d-flex justify-content-between mb-2">
             <select class="form-select form-select-sm w-auto connector-select">
-                <option value="AND">AND (모두 만족)</option>
-                <option value="OR">OR (하나라도 만족)</option>
+                <option value="AND">AND (모두)</option>
+                <option value="OR">OR (하나라도)</option>
             </select>
             <div>
                 <button type="button" class="btn btn-xs btn-outline-primary add-condition-btn">+ 조건</button>
@@ -216,47 +279,41 @@
 </template>
 
 <template id="tpl-condition-row">
-    <div class="condition-row d-flex gap-1 align-items-center mb-1">
-        <!-- LHS Indicator -->
-        <select class="form-select form-select-sm lhs-ind" style="width: 120px;">
+    <div class="condition-row d-flex gap-1 align-items-center mb-1 flex-wrap">
+        <select class="form-select form-select-sm lhs-ind" style="width: 110px;">
             <option value="PRICE">주가 (Close)</option>
             <option value="RSI">RSI</option>
             <option value="SMA">이동평균(SMA)</option>
             <option value="EMA">지수평균(EMA)</option>
-            <!-- <option value="MACD">MACD</option> -->
         </select>
 
-        <!-- LHS Params (Dynamic) -->
-        <input type="number" class="form-control form-control-sm lhs-param" style="width: 60px;" placeholder="14"
+        <input type="number" class="form-control form-control-sm lhs-param" style="width: 50px;" placeholder="14"
             value="14">
 
-        <!-- Operator -->
-        <select class="form-select form-select-sm operator" style="width: 60px;">
+        <select class="form-select form-select-sm operator" style="width: 55px;">
             <option value=">">&gt;</option>
             <option value="<">&lt;</option>
             <option value="=">=</option>
-            <option value="CROSS_UP">상향돌파</option>
-            <option value="CROSS_DOWN">하향돌파</option>
+            <option value="CROSS_UP">⬆돌파</option>
+            <option value="CROSS_DOWN">⬇이탈</option>
         </select>
 
-        <!-- RHS Type -->
-        <select class="form-select form-select-sm rhs-type" style="width: 70px;" onchange="toggleRhsInput(this)">
-            <option value="STATIC">값(수)</option>
+        <select class="form-select form-select-sm rhs-type" style="width: 60px;" onchange="toggleRhsInput(this)">
+            <option value="STATIC">값</option>
             <option value="INDICATOR">지표</option>
         </select>
 
-        <!-- RHS Value or Indicator -->
         <div class="rhs-input-container">
-            <input type="number" class="form-control form-control-sm rhs-val" style="width: 70px;" placeholder="30">
+            <input type="number" class="form-control form-control-sm rhs-val" style="width: 60px;" placeholder="30">
         </div>
 
-        <button type="button" class="btn btn-xs btn-outline-danger remove-condition-btn">X</button>
+        <button type="button" class="btn btn-xs btn-outline-danger remove-condition-btn py-0">X</button>
     </div>
 </template>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // --- 1. UI Logic Builders ---
+    // --- UI & Logic Helpers ---
     const tplNode = document.getElementById('tpl-logic-node');
     const tplCond = document.getElementById('tpl-condition-row');
 
@@ -264,63 +321,45 @@
         const clone = tplNode.content.cloneNode(true);
         const nodeDiv = clone.querySelector('.logic-node');
         const container = clone.querySelector('.conditions-container');
-
-        // Add Condition
         clone.querySelector('.add-condition-btn').onclick = () => createConditionRow(container);
-
-        // Add Group
         clone.querySelector('.add-group-btn').onclick = () => createLogicNode(container);
-
-        // Remove Node
         const removeBtn = clone.querySelector('.remove-node-btn');
-        if (isRoot) {
-            removeBtn.remove(); // Root cannot be deleted
-        } else {
-            removeBtn.onclick = () => nodeDiv.remove();
-        }
-
+        if (isRoot) removeBtn.remove();
+        else removeBtn.onclick = () => nodeDiv.remove();
         parentContainer.appendChild(nodeDiv);
-
-        // Add one default condition for convenience
-        if (isRoot) createConditionRow(container);
+        if (isRoot) createConditionRow(container); // Default
     }
 
     function createConditionRow(container) {
         const clone = tplCond.content.cloneNode(true);
         const rowDiv = clone.querySelector('.condition-row');
-
-        // Remove
         clone.querySelector('.remove-condition-btn').onclick = () => rowDiv.remove();
-
-        // Dynamic Params Handling (Simple version for demo)
         const lhsSel = rowDiv.querySelector('.lhs-ind');
         const lhsParam = rowDiv.querySelector('.lhs-param');
-
         lhsSel.onchange = () => {
-            // Hide param box for PRICE
             if (lhsSel.value === 'PRICE') lhsParam.style.display = 'none';
             else lhsParam.style.display = 'block';
         };
-
+        // Initial Trigger
+        lhsSel.onchange();
         container.appendChild(rowDiv);
+        return rowDiv;
     }
 
     function toggleRhsInput(selectElem) {
         const row = selectElem.closest('.condition-row');
         const container = row.querySelector('.rhs-input-container');
         const val = selectElem.value;
-
-        container.innerHTML =
-            val === 'STATIC'
-                ? '<input type="number" class="form-control form-control-sm rhs-val" style="width: 70px;" placeholder="30">'
-                : `<div class="d-flex gap-1">
-                     <select class="form-select form-select-sm rhs-ind" style="width: 80px;">
-                        <option value="PRICE">주가</option>
-                        <option value="SMA">SMA</option>
-                        <option value="EMA">EMA</option>
-                     </select>
-                     <input type="number" class="form-control form-control-sm rhs-param" style="width: 50px;" value="20">
-                   </div>`;
+        container.innerHTML = val === 'STATIC'
+            ? '<input type="number" class="form-control form-control-sm rhs-val" style="width: 60px;" placeholder="30">'
+            : `<div class="d-flex gap-1">
+                 <select class="form-select form-select-sm rhs-ind" style="width: 70px;">
+                    <option value="PRICE">주가</option>
+                    <option value="SMA">SMA</option>
+                    <option value="EMA">EMA</option>
+                 </select>
+                 <input type="number" class="form-control form-control-sm rhs-param" style="width: 40px;" value="20">
+               </div>`;
     }
 
     function toggleDCA() {
@@ -332,33 +371,23 @@
         document.getElementById('buyLogicContainer').innerHTML = '';
         document.getElementById('sellLogicContainer').innerHTML = '';
         createLogicNode(document.getElementById('buyLogicContainer'), true);
+
+        // Reset ID/Name
+        document.getElementById('currentStrategyId').value = '';
+        document.getElementById('currentStrategyLabel').style.display = 'none';
+        document.getElementById('strategyNameInput').value = '';
     }
 
-    // Initialize
-    window.onload = function () {
-        createLogicNode(document.getElementById('buyLogicContainer'), true);
-    };
-
-    // --- 2. JSON Parser (DOM -> JSON) ---
+    // --- JSON Parser/Builder ---
     function parseLogicNode(nodeDiv) {
         const connector = nodeDiv.querySelector('.connector-select').value;
         const container = nodeDiv.querySelector('.conditions-container');
-        const children = container.children;
-
         const conditions = [];
-
-        for (let child of children) {
-            if (child.classList.contains('logic-node')) {
-                conditions.push(parseLogicNode(child));
-            } else if (child.classList.contains('condition-row')) {
-                conditions.push(parseCondition(child));
-            }
+        for (let child of container.children) {
+            if (child.classList.contains('logic-node')) conditions.push(parseLogicNode(child));
+            else if (child.classList.contains('condition-row')) conditions.push(parseCondition(child));
         }
-
-        return {
-            connector: connector,
-            conditions: conditions
-        };
+        return { connector: connector, conditions: conditions };
     }
 
     function parseCondition(row) {
@@ -366,25 +395,16 @@
         const lhsParamVal = row.querySelector('.lhs-param').value;
         const operator = row.querySelector('.operator').value;
         const rhsType = row.querySelector('.rhs-type').value;
-
         let rhsVal;
         if (rhsType === 'STATIC') {
             rhsVal = parseFloat(row.querySelector('.rhs-val').value) || 0;
         } else {
-            // Indicator config
             const rhsIndName = row.querySelector('.rhs-ind').value;
             const rhsParamVal = row.querySelector('.rhs-param').value;
-            rhsVal = {
-                name: rhsIndName,
-                params: { period: parseInt(rhsParamVal) }
-            };
+            rhsVal = { name: rhsIndName, params: { period: parseInt(rhsParamVal) } };
         }
-
         return {
-            indicator: {
-                name: lhsInd,
-                params: { period: parseInt(lhsParamVal) || 0 }
-            },
+            indicator: { name: lhsInd, params: { period: parseInt(lhsParamVal) || 0 } },
             operator: operator,
             value_type: rhsType,
             value: rhsVal
@@ -393,15 +413,12 @@
 
     function buildStrategyJson() {
         const buyRoot = document.getElementById('buyLogicContainer').firstElementChild;
-        const buyLogic = parseLogicNode(buyRoot);
-
-        // Sell Logic (Optional)
-        let sellLogic = null;
+        const buyLogic = buyRoot ? parseLogicNode(buyRoot) : null;
         const sellRoot = document.getElementById('sellLogicContainer').firstElementChild;
+        let sellLogic = null;
         if (sellRoot) sellLogic = parseLogicNode(sellRoot);
 
         const dcaEnabled = document.getElementById('dcaEnabled').checked;
-
         return {
             buy_conditions: buyLogic,
             sell_conditions: sellLogic,
@@ -414,41 +431,212 @@
         };
     }
 
-    // --- 3. AJAX & Chart ---
-    let myChart = null;
+    // --- JSON Logic Loader (Reconstruction) ---
+    function renderLogic(container, logicData) {
+        container.innerHTML = '';
+        if (!logicData) return;
+        renderLogicNodeRecursive(container, logicData, true);
+    }
 
+    function renderLogicNodeRecursive(container, logicNode, isRoot) {
+        // Create Node
+        createLogicNode(container, false); // Add fake first, then clean
+        // The helper `createLogicNode` appends. We get the last child.
+        const nodeDiv = container.lastElementChild;
+
+        // Remove the default condition added by helper for non-root, or keep for root? 
+        // Our helper helper adds a default condition if isRoot only. 
+        // Logic: clear automatically added stuff and rebuild.
+        const condContainer = nodeDiv.querySelector('.conditions-container');
+        condContainer.innerHTML = '';
+
+        // Set Connector
+        nodeDiv.querySelector('.connector-select').value = logicNode.connector || 'AND';
+
+        // Root check logic adjustment
+        if (isRoot) {
+            // Helper handles root removal button check
+            const removeBtn = nodeDiv.querySelector('.remove-node-btn');
+            if (removeBtn) removeBtn.remove();
+        }
+
+        // Render Children
+        if (logicNode.conditions && logicNode.conditions.length > 0) {
+            logicNode.conditions.forEach(child => {
+                if (child.connector) {
+                    // It's a group
+                    renderLogicNodeRecursive(condContainer, child, false);
+                } else {
+                    // It's a condition
+                    renderConditionRow(condContainer, child);
+                }
+            });
+        }
+    }
+
+    function renderConditionRow(container, condData) {
+        const rowDiv = createConditionRow(container);
+
+        // LHS
+        const lhsSel = rowDiv.querySelector('.lhs-ind');
+        const lhsParam = rowDiv.querySelector('.lhs-param');
+        lhsSel.value = condData.indicator.name;
+        lhsParam.value = condData.indicator.params.period || 14;
+        lhsSel.onchange(); // trigger display
+
+        // Operator
+        rowDiv.querySelector('.operator').value = condData.operator;
+
+        // RHS
+        const rhsTypeSel = rowDiv.querySelector('.rhs-type');
+        rhsTypeSel.value = condData.value_type;
+        toggleRhsInput(rhsTypeSel); // Build DOM
+
+        const rhsContainer = rowDiv.querySelector('.rhs-input-container');
+        if (condData.value_type === 'STATIC') {
+            rhsContainer.querySelector('.rhs-val').value = condData.value;
+        } else {
+            rhsContainer.querySelector('.rhs-ind').value = condData.value.name;
+            rhsContainer.querySelector('.rhs-param').value = condData.value.params.period;
+        }
+    }
+
+
+    // --- CRUD Operations ---
+    async function showSaveModal() {
+        const id = document.getElementById('currentStrategyId').value;
+        if (id) {
+            // If editing, use existing name
+            // But we need to fetch name? it's in input
+            document.getElementById('modalStrategyName').value = document.getElementById('strategyNameInput').value;
+        } else {
+            document.getElementById('modalStrategyName').value = '';
+        }
+        new bootstrap.Modal(document.getElementById('saveStrategyModal')).show();
+    }
+
+    async function confirmSaveStrategy() {
+        const name = document.getElementById('modalStrategyName').value;
+        if (!name) return alert("전략 이름을 입력해주세요.");
+
+        const id = document.getElementById('currentStrategyId').value;
+        const logic = buildStrategyJson();
+        const ticker = document.getElementById('stockSelect').value; // Save context
+
+        try {
+            const resp = await fetch('/core/strategy/save/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ strategy_id: id, name: name, logic: logic, ticker: ticker })
+            });
+            const res = await resp.json();
+            if (res.success) {
+                alert(res.message);
+                location.reload(); // Simple reload to refresh list
+            } else {
+                alert("Error: " + res.error);
+            }
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
+    }
+
+    async function loadStrategy(id) {
+        try {
+            const resp = await fetch(`/core/strategy/${id}/load/`);
+            const res = await resp.json();
+            if (res.success) {
+                const data = res.data;
+                // Set Meta
+                document.getElementById('currentStrategyId').value = data.id;
+                document.getElementById('strategyNameInput').value = data.name;
+                document.getElementById('currentStrategyLabel').innerText = "편집 중: " + data.name;
+                document.getElementById('currentStrategyLabel').style.display = 'inline-block';
+
+                // Select Ticker if exists
+                if (data.ticker) {
+                    const sel = document.getElementById('stockSelect');
+                    if (sel.querySelector(`option[value="${data.ticker}"]`)) sel.value = data.ticker;
+                }
+
+                // Render Logic
+                const logic = data.logic || {};
+
+                // Reset containers
+                document.getElementById('buyLogicContainer').innerHTML = '';
+                document.getElementById('sellLogicContainer').innerHTML = '';
+
+                // Render Buy
+                if (logic.buy_conditions) {
+                    renderLogicNodeRecursive(document.getElementById('buyLogicContainer'), logic.buy_conditions, true);
+                } else {
+                    createLogicNode(document.getElementById('buyLogicContainer'), true); // Default
+                }
+
+                // Render Sell
+                if (logic.sell_conditions) {
+                    renderLogicNodeRecursive(document.getElementById('sellLogicContainer'), logic.sell_conditions, true);
+                }
+
+                // DCA
+                if (logic.dca_config) {
+                    document.getElementById('dcaEnabled').checked = logic.dca_config.enabled;
+                    toggleDCA();
+                    document.getElementById('dcaType').value = logic.dca_config.type;
+                    document.getElementById('dcaAmount').value = logic.dca_config.amount;
+                    document.getElementById('dcaInterval').value = logic.dca_config.interval;
+                }
+
+                alert(`'${data.name}' 전략을 불러왔습니다.`);
+
+            } else {
+                alert("Error: " + res.error);
+            }
+        } catch (e) { console.error(e); alert("불러오기 실패"); }
+    }
+
+    async function deleteStrategy(id, event) {
+        event.stopPropagation();
+        if (!confirm("정말 이 전략을 삭제하시겠습니까?")) return;
+
+        try {
+            const resp = await fetch(`/core/strategy/${id}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            const res = await resp.json();
+            if (res.success) {
+                document.getElementById(`strategy-row-${id}`).remove();
+                // If current, reset?
+                if (document.getElementById('currentStrategyId').value == id) resetStrategy();
+            } else {
+                alert("삭제 실패: " + res.error);
+            }
+        } catch (e) { alert("삭제 오류"); }
+    }
+
+    // --- Backtest Runner ---
+    let myChart = null;
     async function runBacktest() {
         const strategy = buildStrategyJson();
         const stockCode = document.getElementById('stockSelect').value;
         const capital = document.getElementById('initialCapital').value;
-
-        // Validation Warning
         if (!stockCode) return alert("종목을 선택해주세요.");
 
         const btn = document.querySelector('.btn-success');
         const oldText = btn.innerText;
-        btn.innerText = "⏳ 실행 중...";
+        btn.innerText = "⏳ 계산 중...";
         btn.disabled = true;
 
         try {
-            const response = await fetch('/core/backtest/run/', {
+            const resp = await fetch('/core/backtest/run/', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    ticker: stockCode,
-                    capital: capital,
-                    strategy: strategy
-                })
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ ticker: stockCode, capital: capital, strategy: strategy })
             });
-
-            const res = await response.json();
+            const res = await resp.json();
             if (!res.success) throw new Error(res.error || "Unknown Error");
-
             updateDashboard(res.data);
-
         } catch (e) {
             alert("백테스팅 실패: " + e.message);
         } finally {
@@ -458,139 +646,61 @@
     }
 
     function updateDashboard(data) {
-        // 1. Stats
-        document.getElementById('resultStats').style.display = 'flex';
+        const stats = document.getElementById('resultStats');
+        stats.style.display = 'flex';
         document.getElementById('resFinalCapital').innerText = Number(data.final_equity).toLocaleString() + "원";
         document.getElementById('resReturn').innerText = data.total_return.toFixed(2) + "%";
-        document.getElementById('resReturn').innerText = data.total_return.toFixed(2) + "%";
         document.getElementById('resMdd').innerText = data.mdd.toFixed(2) + "%";
-        document.getElementById('resTrades').innerText = data.trades.length + "회"; // Total Logs
+        document.getElementById('resTrades').innerText = data.trades.length + "회";
+        document.getElementById('resWinRate').innerText = (data.win_rate || 0).toFixed(1) + "%";
+        document.getElementById('resProfitFactor').innerText = (data.profit_factor || 0).toFixed(2);
 
-        // New KPIs
-        document.getElementById('resWinRate').innerText = (data.win_rate !== undefined ? data.win_rate.toFixed(1) : "-") + "%";
-        document.getElementById('resProfitFactor').innerText = (data.profit_factor !== undefined ? data.profit_factor.toFixed(2) : "-");
-
-        // Enable CSV Download
-        const stockCode = document.getElementById('stockSelect').value;
-        const capital = document.getElementById('initialCapital').value;
-        const strategy = buildStrategyJson();
-
-        document.getElementById('csvTicker').value = stockCode;
-        document.getElementById('csvCapital').value = capital;
-        document.getElementById('csvStrategy').value = JSON.stringify(strategy);
+        // CSV Setup
+        document.getElementById('csvTicker').value = document.getElementById('stockSelect').value;
+        document.getElementById('csvCapital').value = document.getElementById('initialCapital').value;
+        document.getElementById('csvStrategy').value = JSON.stringify(buildStrategyJson());
         document.getElementById('btnDownloadCsv').disabled = false;
 
-        // 2. Chart Markers
+        // Chart
         const ctx = document.getElementById('equityChart').getContext('2d');
         if (myChart) myChart.destroy();
 
         const labels = data.equity_curve.map(d => d.date);
-        const equityData = data.equity_curve.map(d => d.equity);
-
-        // Prepare Buy/Sell Markers
-        // We need to map trades to the correct index in 'labels'
-        const buyPoints = [];
-        const sellPoints = [];
-
-        const dateToIndex = {};
-        labels.forEach((d, i) => dateToIndex[d] = i);
-
-        data.trades.forEach(t => {
-            const idx = dateToIndex[t.date];
-            if (idx !== undefined) {
-                // Determine equity value at that date (roughly)
-                const yVal = equityData[idx];
-
-                if (t.type.includes('BUY')) {
-                    buyPoints.push({ x: t.date, y: yVal, desc: `매수: ${Number(t.price).toLocaleString()}원 (${t.quantity}주)` });
-                } else if (t.type.includes('SELL')) {
-                    sellPoints.push({ x: t.date, y: yVal, desc: `매도: ${Number(t.price).toLocaleString()}원 (${t.quantity}주)` });
-                }
-            }
-        });
+        const equity = data.equity_curve.map(d => d.equity);
 
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
-                datasets: [
-                    {
-                        label: '자산 추이',
-                        data: equityData,
-                        borderColor: 'rgb(75, 192, 192)',
-                        borderWidth: 2,
-                        tension: 0.1,
-                        pointRadius: 0,
-                        order: 2
-                    },
-                    {
-                        label: '매수 (Buy)',
-                        data: buyPoints,
-                        type: 'scatter',
-                        backgroundColor: 'red',
-                        pointStyle: 'triangle',
-                        pointRadius: 8,
-                        pointHoverRadius: 10,
-                        order: 1
-                    },
-                    {
-                        label: '매도 (Sell)',
-                        data: sellPoints,
-                        type: 'scatter',
-                        backgroundColor: 'blue',
-                        pointStyle: 'triangle',
-                        rotation: 180, // Inverted triangle
-                        pointRadius: 8,
-                        pointHoverRadius: 10,
-                        order: 1
-                    }
-                ]
+                datasets: [{
+                    label: '자산', data: equity, borderColor: '#3b82f6', tension: 0.1, pointRadius: 0
+                }]
             },
             options: {
                 responsive: true,
-                interaction: {
-                    mode: 'nearest',
-                    intersect: false,
-                    axis: 'x'
-                },
-                plugins: {
-                    tooltip: {
-                        callbacks: {
-                            label: function (context) {
-                                const pt = context.raw;
-                                if (pt.desc) return pt.desc;
-                                return context.dataset.label + ": " + Number(context.raw).toLocaleString();
-                            }
-                        }
-                    }
-                }
+                plugins: { legend: { display: false } },
+                interaction: { intersect: false, mode: 'index' }
             }
         });
 
-        // 3. Log
+        // Log
         const tbody = document.getElementById('tradeLogBody');
         tbody.innerHTML = '';
         data.trades.forEach(t => {
             const tr = document.createElement('tr');
-
-            let color = 'text-dark';
-            if (t.type.includes('BUY')) color = 'text-danger';
-            if (t.type.includes('SELL')) color = 'text-primary';
-
             tr.innerHTML = `
-                <td>${t.date}</td>
-                <td class="${color} fw-bold">${t.type}</td>
+                <td>${t.date.slice(2)}</td>
+                <td class="${t.type.includes('BUY') ? 'text-danger' : 'text-primary'} fw-bold">${t.type}</td>
                 <td>${Number(t.price).toLocaleString()}</td>
                 <td>${t.quantity}</td>
-                <td>${Number(t.amount).toLocaleString()}</td>
-                <td>${Number(t.amount).toLocaleString()}</td>
-                <td>
-                    ${Number(t.balance).toLocaleString()}
-                    ${t.pnl ? `<br><small class="${t.pnl > 0 ? 'text-success' : 'text-danger'}">(${t.pnl > 0 ? '+' : ''}${Number(t.pnl).toLocaleString()})</small>` : ''}
-                </td>
             `;
             tbody.appendChild(tr);
         });
     }
+
+    // Init
+    window.onload = function () {
+        createLogicNode(document.getElementById('buyLogicContainer'), true);
+    };
 </script>
 {% endblock %}

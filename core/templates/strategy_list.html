@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}📂 내 전략 목록{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold">📂 나의 전략 보관함</h5>
+                <a href="{% url 'strategy_builder' %}" class="btn btn-primary d-flex align-items-center gap-2">
+                    <span style="font-size:1.2rem;">+</span> 전략 생성하기
+                </a>
+            </div>
+            <div class="card-body">
+                {% if my_strategies %}
+                <div class="row g-4">
+                    {% for strategy in my_strategies %}
+                    <div class="col-md-4 col-xl-3">
+                        <div class="card h-100 border-0 shadow-sm hover-shadow transition-all"
+                            style="transition: transform 0.2s;">
+                            <div class="card-body position-relative">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="badge bg-light text-dark border">{{ strategy.ticker|default:"All"
+                                        }}</span>
+                                    <small class="text-muted">{{ strategy.updated_at|date:"Y.m.d" }}</small>
+                                </div>
+                                <h5 class="card-title fw-bold text-truncate">{{ strategy.name }}</h5>
+                                <p class="card-text text-muted small text-truncate-2" style="min-height: 40px;">
+                                    {{ strategy.description|default:"설명 없음" }}
+                                </p>
+
+                                <div class="d-flex gap-2 mt-3">
+                                    <a href="{% url 'strategy_builder_edit' strategy.id %}"
+                                        class="btn btn-sm btn-outline-primary flex-grow-1">
+                                        ✏️ 수정
+                                    </a>
+                                    <button class="btn btn-sm btn-outline-danger" data-id="{{ strategy.id }}"
+                                        data-name="{{ strategy.name|escapejs }}" onclick="deleteStrategy(this)">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent border-top-0 pt-0">
+                                <a href="{% url 'backtest_runner' %}?strategy_id={{ strategy.id }}"
+                                    class="btn btn-light w-100 text-primary fw-bold" style="background-color: #f1f5f9;">
+                                    🚀 백테스팅 실행
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <div class="mb-3" style="font-size: 3rem;">📭</div>
+                    <h5 class="text-muted">저장된 전략이 없습니다.</h5>
+                    <p class="text-muted mb-4">나만의 투자 전략을 만들어보세요!</p>
+                    <a href="{% url 'strategy_builder' %}" class="btn btn-outline-primary">
+                        첫 전략 만들기
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function deleteStrategy(btn) {
+        const id = btn.dataset.id;
+        const name = btn.dataset.name;
+        if (!confirm(`'${name}' 전략을 정말 삭제하시겠습니까?`)) return;
+
+        try {
+            const resp = await fetch(`/core/strategy/${id}/delete/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+            });
+            const res = await resp.json();
+            if (res.success) {
+                location.reload();
+            } else {
+                alert("삭제 실패: " + res.error);
+            }
+        } catch (e) { alert("오류 발생"); }
+    }
+</script>
+
+<style>
+    .hover-shadow:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+    }
+
+    .text-truncate-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}

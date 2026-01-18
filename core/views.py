@@ -83,7 +83,7 @@ def home(request):
     # Landing Page
     if request.user.is_authenticated:
         return redirect('dashboard')
-    return render(request, 'home.html')
+    return render(request, 'home.html', {'active_main_menu': 'home'})
 
 @login_required
 def dashboard(request):

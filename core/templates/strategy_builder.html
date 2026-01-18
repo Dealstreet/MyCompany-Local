@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}🛠️ 전략 빌더{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10 col-xl-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0">
+                    {% if strategy_id %}🛠️ 전략 수정{% else %}🛠️ 새 전략 만들기{% endif %}
+                </h5>
+                <div>
+                    <a href="{% url 'strategy_list' %}" class="btn btn-outline-light btn-sm me-2">목록으로</a>
+                    <button class="btn btn-primary btn-sm fw-bold px-3" onclick="saveStrategy()">💾 저장하기</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <form id="strategyForm">
+                    <input type="hidden" id="strategyId" value="{{ strategy_id|default:'' }}">
+
+                    <!-- Meta Info -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">전략 이름</label>
+                        <input type="text" class="form-control form-control-lg" id="strategyName"
+                            placeholder="예: 골든크로스 전략 v1">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted small">대상 종목 (참고용)</label>
+                        <select class="form-select w-50" id="strategyTicker">
+                            <option value="">(전 종목 대상)</option>
+                            {% for stock in stocks %}
+                            <option value="{{ stock.code }}">{{ stock.name }} ({{ stock.code }})</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">특정 종목에 최적화된 전략일 경우 선택하세요.</div>
+                    </div>
+
+                    <!-- Buy Conditions -->
+                    <div class="card mb-4 border-danger">
+                        <div
+                            class="card-header bg-danger text-white py-2 d-flex justify-content-between align-items-center">
+                            <span>🔵 매수 조건 Logic</span>
+                            <button type="button" class="btn btn-xs btn-light py-0 text-danger fw-bold"
+                                onclick="resetContainer('buyLogicContainer')">초기화</button>
+                        </div>
+                        <div class="card-body bg-light" id="buyLogicContainer" style="min-height: 150px;">
+                            <!-- Nodes injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Sell Conditions -->
+                    <div class="card mb-4 border-primary">
+                        <div
+                            class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
+                            <span>🔴 매도 조건 Logic</span>
+                            <button type="button" class="btn btn-xs btn-light py-0 text-primary fw-bold"
+                                onclick="resetContainer('sellLogicContainer')">초기화</button>
+                        </div>
+                        <div class="card-body bg-light" id="sellLogicContainer" style="min-height: 100px;">
+                            <p class="text-muted small text-center py-4 mb-0" id="sellPlaceholder">
+                                매도 조건이 없으면 매수 후 계속 보유합니다. <br>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2"
+                                    onclick="initSellLogic()">매도 조건 추가</button>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- DCA Section Removed as requested -->
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Builder Templates -->
+<template id="tpl-logic-node">
+    <div class="logic-node border rounded p-3 mb-2 bg-white shadow-sm">
+        <div class="d-flex justify-content-between mb-2">
+            <select class="form-select form-select-sm w-auto connector-select bg-light fw-bold text-dark">
+                <option value="AND">AND (모두 만족)</option>
+                <option value="OR">OR (하나라도 만족)</option>
+            </select>
+            <div class="btn-group">
+                <button type="button" class="btn btn-sm btn-outline-secondary add-condition-btn">+ 조건</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary add-group-btn">+ 그룹</button>
+                <button type="button" class="btn btn-sm btn-outline-danger remove-node-btn">삭제</button>
+            </div>
+        </div>
+        <div class="conditions-container ps-3 border-start border-3 border-secondary"></div>
+    </div>
+</template>
+
+<template id="tpl-condition-row">
+    <div class="condition-row d-flex gap-2 align-items-center mb-2 flex-wrap p-2 border rounded bg-light-subtle">
+        <select class="form-select form-select-sm lhs-ind" style="width: 130px;">
+            <option value="PRICE">주가 (Close)</option>
+            <option value="RSI">RSI</option>
+            <option value="SMA">이동평균(SMA)</option>
+            <option value="EMA">지수평균(EMA)</option>
+        </select>
+
+        <input type="number" class="form-control form-control-sm lhs-param" style="width: 60px;" placeholder="14"
+            value="14">
+
+        <select class="form-select form-select-sm operator fw-bold text-center" style="width: 80px;">
+            <option value=">">&gt;</option>
+            <option value="<">&lt;</option>
+            <option value="=">=</option>
+            <option value="CROSS_UP">⬆ 상향돌파</option>
+            <option value="CROSS_DOWN">⬇ 하향돌파</option>
+        </select>
+
+        <select class="form-select form-select-sm rhs-type" style="width: 70px;" onchange="toggleRhsInput(this)">
+            <option value="STATIC">값</option>
+            <option value="INDICATOR">지표</option>
+        </select>
+
+        <div class="rhs-input-container">
+            <input type="number" class="form-control form-control-sm rhs-val" style="width: 80px;" placeholder="30">
+        </div>
+
+        <button type="button" class="btn btn-sm btn-close ms-auto remove-condition-btn" aria-label="Close"></button>
+    </div>
+</template>
+
+<script>
+    // --- UI Logic Helpers ---
+    const tplNode = document.getElementById('tpl-logic-node');
+    const tplCond = document.getElementById('tpl-condition-row');
+
+    function createLogicNode(parentContainer, isRoot = false) {
+        const clone = tplNode.content.cloneNode(true);
+        const nodeDiv = clone.querySelector('.logic-node');
+        const container = clone.querySelector('.conditions-container');
+
+        clone.querySelector('.add-condition-btn').onclick = () => createConditionRow(container);
+        clone.querySelector('.add-group-btn').onclick = () => createLogicNode(container);
+
+        const removeBtn = clone.querySelector('.remove-node-btn');
+        if (isRoot) removeBtn.remove();
+        else removeBtn.onclick = () => nodeDiv.remove();
+
+        parentContainer.appendChild(nodeDiv);
+
+        if (isRoot) createConditionRow(container);
+    }
+
+    function createConditionRow(container) {
+        const clone = tplCond.content.cloneNode(true);
+        const rowDiv = clone.querySelector('.condition-row');
+        clone.querySelector('.remove-condition-btn').onclick = () => rowDiv.remove();
+
+        const lhsSel = rowDiv.querySelector('.lhs-ind');
+        const lhsParam = rowDiv.querySelector('.lhs-param');
+        lhsSel.onchange = () => {
+            if (lhsSel.value === 'PRICE') lhsParam.style.display = 'none';
+            else lhsParam.style.display = 'block';
+        };
+        lhsSel.onchange();
+
+        container.appendChild(rowDiv);
+        return rowDiv;
+    }
+
+    function toggleRhsInput(selectElem) {
+        const row = selectElem.closest('.condition-row');
+        const container = row.querySelector('.rhs-input-container');
+        const val = selectElem.value;
+        container.innerHTML = val === 'STATIC'
+            ? '<input type="number" class="form-control form-control-sm rhs-val" style="width: 80px;" placeholder="30">'
+            : `<div class="d-flex gap-1 align-items-center">
+                 <select class="form-select form-select-sm rhs-ind" style="width: 80px;">
+                    <option value="PRICE">주가</option>
+                    <option value="SMA">SMA</option>
+                    <option value="EMA">EMA</option>
+                 </select>
+                 <input type="number" class="form-control form-control-sm rhs-param" style="width: 50px;" value="20">
+               </div>`;
+    }
+
+    function resetContainer(id) {
+        document.getElementById(id).innerHTML = '';
+        if (id === 'buyLogicContainer') createLogicNode(document.getElementById(id), true);
+        if (id === 'sellLogicContainer') {
+            document.getElementById(id).innerHTML = `
+                <p class="text-muted small text-center py-4 mb-0" id="sellPlaceholder">
+                    매도 조건이 없으면 매수 후 계속 보유합니다. <br>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="initSellLogic()">매도 조건 추가</button>
+                </p>`;
+        }
+    }
+
+    function initSellLogic() {
+        const c = document.getElementById('sellLogicContainer');
+        c.innerHTML = '';
+        createLogicNode(c, true);
+    }
+
+    // --- JSON Parser ---
+    function parseLogicNode(nodeDiv) {
+        const connector = nodeDiv.querySelector('.connector-select').value;
+        const container = nodeDiv.querySelector('.conditions-container');
+        const conditions = [];
+        for (let child of container.children) {
+            if (child.classList.contains('logic-node')) conditions.push(parseLogicNode(child));
+            else if (child.classList.contains('condition-row')) conditions.push(parseCondition(child));
+        }
+        return { connector: connector, conditions: conditions };
+    }
+
+    function parseCondition(row) {
+        const lhsInd = row.querySelector('.lhs-ind').value;
+        const lhsParamVal = row.querySelector('.lhs-param').value;
+        const operator = row.querySelector('.operator').value;
+        const rhsType = row.querySelector('.rhs-type').value;
+        let rhsVal;
+
+        if (rhsType === 'STATIC') {
+            rhsVal = parseFloat(row.querySelector('.rhs-val').value) || 0;
+        } else {
+            const rhsContainer = row.querySelector('.rhs-input-container');
+            const rhsIndName = rhsContainer.querySelector('.rhs-ind').value;
+            const rhsParamVal = rhsContainer.querySelector('.rhs-param').value;
+            rhsVal = { name: rhsIndName, params: { period: parseInt(rhsParamVal) } };
+        }
+        return {
+            indicator: { name: lhsInd, params: { period: parseInt(lhsParamVal) || 0 } },
+            operator: operator,
+            value_type: rhsType,
+            value: rhsVal
+        };
+    }
+
+    // --- Load & Save ---
+    const STRATEGY_ID = document.getElementById('strategyId').value;
+
+    window.onload = async function () {
+        if (STRATEGY_ID) {
+            await loadStrategyData(STRATEGY_ID);
+        } else {
+            resetContainer('buyLogicContainer');
+            // Sell container default is placeholder
+        }
+    };
+
+    async function loadStrategyData(id) {
+        try {
+            const resp = await fetch(`/core/strategy/${id}/load/`);
+            const res = await resp.json();
+            if (res.success) {
+                const data = res.data;
+                document.getElementById('strategyName').value = data.name;
+                if (data.ticker) document.getElementById('strategyTicker').value = data.ticker;
+
+                // Logic Reconstruction
+                const logic = data.logic || {};
+
+                // Buy
+                const buyC = document.getElementById('buyLogicContainer');
+                buyC.innerHTML = '';
+                if (logic.buy_conditions) renderLogicNodeRecursive(buyC, logic.buy_conditions, true);
+                else createLogicNode(buyC, true);
+
+                // Sell
+                const sellC = document.getElementById('sellLogicContainer');
+                sellC.innerHTML = '';
+                if (logic.sell_conditions) {
+                    renderLogicNodeRecursive(sellC, logic.sell_conditions, true);
+                } else {
+                    resetContainer('sellLogicContainer');
+                }
+
+            } else {
+                alert("Error: " + res.error);
+            }
+        } catch (e) {
+            console.error(e); alert("불러오기 실패");
+        }
+    }
+
+    // Recursive Loader from previous code
+    function renderLogicNodeRecursive(container, logicNode, isRoot) {
+        createLogicNode(container, false);
+        const nodeDiv = container.lastElementChild;
+        const condContainer = nodeDiv.querySelector('.conditions-container');
+        condContainer.innerHTML = '';
+
+        nodeDiv.querySelector('.connector-select').value = logicNode.connector || 'AND';
+        if (isRoot) {
+            const removeBtn = nodeDiv.querySelector('.remove-node-btn');
+            if (removeBtn) removeBtn.remove();
+        }
+
+        if (logicNode.conditions) {
+            logicNode.conditions.forEach(child => {
+                if (child.connector) renderLogicNodeRecursive(condContainer, child, false);
+                else renderConditionRow(condContainer, child);
+            });
+        }
+    }
+
+    function renderConditionRow(container, condData) {
+        const rowDiv = createConditionRow(container);
+        const lhsSel = rowDiv.querySelector('.lhs-ind');
+        const lhsParam = rowDiv.querySelector('.lhs-param');
+        lhsSel.value = condData.indicator.name;
+        lhsParam.value = condData.indicator.params.period || 14;
+        lhsSel.onchange();
+
+        rowDiv.querySelector('.operator').value = condData.operator;
+
+        const rhsTypeSel = rowDiv.querySelector('.rhs-type');
+        rhsTypeSel.value = condData.value_type;
+        toggleRhsInput(rhsTypeSel);
+
+        const rhsContainer = rowDiv.querySelector('.rhs-input-container');
+        if (condData.value_type === 'STATIC') {
+            rhsContainer.querySelector('.rhs-val').value = condData.value;
+        } else {
+            rhsContainer.querySelector('.rhs-ind').value = condData.value.name;
+            rhsContainer.querySelector('.rhs-param').value = condData.value.params.period;
+        }
+    }
+
+    async function saveStrategy() {
+        const name = document.getElementById('strategyName').value;
+        if (!name) return alert("전략 이름을 입력해주세요.");
+
+        const buyRoot = document.getElementById('buyLogicContainer').firstElementChild;
+        const buyLogic = buyRoot ? parseLogicNode(buyRoot) : null;
+
+        const sellRoot = document.getElementById('sellLogicContainer').firstElementChild;
+        // Check if sellRoot is actual logic node or placeholder
+        let sellLogic = null;
+        if (sellRoot && sellRoot.classList.contains('logic-node')) {
+            sellLogic = parseLogicNode(sellRoot);
+        }
+
+        const logic = {
+            buy_conditions: buyLogic,
+            sell_conditions: sellLogic,
+            // Removed dca_config
+        };
+
+        const payload = {
+            strategy_id: STRATEGY_ID,
+            name: name,
+            ticker: document.getElementById('strategyTicker').value,
+            logic: logic
+        };
+
+        try {
+            const resp = await fetch('/core/strategy/save/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify(payload)
+            });
+            const res = await resp.json();
+            if (res.success) {
+                alert(res.message);
+                window.location.href = "{% url 'strategy_list' %}";
+            } else {
+                alert("저장 실패: " + res.error);
+            }
+        } catch (e) {
+            alert("저장 오류: " + e.message);
+        }
+    }
+</script>
+{% endblock %}

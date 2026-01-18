@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}🚀 백테스팅 실행{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <!-- Controls -->
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-success text-white py-3">
+                <h5 class="mb-0 fw-bold">⚙️ 시뮬레이션 설정</h5>
+            </div>
+            <div class="card-body">
+                <form id="runnerForm">
+                    <!-- Strategy Select -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">1. 전략 선택</label>
+                        <select class="form-select" id="strategySelect" onchange="loadStrategyInfo()">
+                            <option value="">-- 전략을 선택하세요 --</option>
+                            {% for s in my_strategies %}
+                            <option value="{{ s.id }}" data-logic='{{ s.logic|safe }}' data-ticker="{{ s.ticker }}">
+                                {{ s.name }} ({{ s.updated_at|date:"Y-m-d" }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text" id="strategyDesc"></div>
+                    </div>
+
+                    <!-- Ticker Select -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">2. 대상 종목</label>
+                        <select class="form-select" id="stockSelect">
+                            {% for stock in stocks %}
+                            <option value="{{ stock.code }}">{{ stock.name }} ({{ stock.code }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Capital -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">3. 초기 자본금</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="initialCapital" value="10000000">
+                            <span class="input-group-text">원</span>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-5">
+                        <button type="button" class="btn btn-success btn-lg fw-bold shadow-sm" onclick="runBacktest()">
+                            🚀 시뮬레이션 시작
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="col-md-8">
+        <!-- KPI Cards -->
+        <div id="resultStats" class="row g-3 mb-4" style="display:none;">
+            <div class="col-md-4">
+                <div class="card text-center text-white bg-primary h-100 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title text-uppercase opacity-75">최종 자산</h6>
+                        <h3 class="card-text fw-bold" id="resFinalCapital">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center text-white bg-success h-100 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title text-uppercase opacity-75">수익률</h6>
+                        <h3 class="card-text fw-bold" id="resReturn">-</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center text-white bg-danger h-100 shadow-sm">
+                    <div class="card-body">
+                        <h6 class="card-title text-uppercase opacity-75">MDD</h6>
+                        <h3 class="card-text fw-bold" id="resMdd">-</h3>
+                    </div>
+                </div>
+            </div>
+            <!-- Secondary KPIs -->
+            <div class="col-md-4">
+                <div class="card text-center bg-white h-100 shadow-sm border">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted text-uppercase small">승률</h6>
+                        <h4 class="card-text fw-bold text-dark" id="resWinRate">-</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center bg-white h-100 shadow-sm border">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted text-uppercase small">손익비</h6>
+                        <h4 class="card-text fw-bold text-dark" id="resProfitFactor">-</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center bg-white h-100 shadow-sm border">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted text-uppercase small">총 거래 횟수</h6>
+                        <h4 class="card-text fw-bold text-dark" id="resTrades">-</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body position-relative">
+                <canvas id="equityChart" style="max-height: 400px;"></canvas>
+            </div>
+        </div>
+
+        <!-- Trade Log -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                <h5 class="mb-0 fw-bold">📜 거래 내역</h5>
+                <form id="csvExportForm" method="POST" action="{% url 'export_backtest_csv' %}" target="_blank">
+                    <input type="hidden" name="ticker" id="csvTicker">
+                    <input type="hidden" name="capital" id="csvCapital">
+                    <input type="hidden" name="strategy_json" id="csvStrategy">
+                    <button type="submit" class="btn btn-outline-secondary btn-sm" id="btnDownloadCsv" disabled>
+                        💾 엑셀 다운로드
+                    </button>
+                </form>
+            </div>
+            <div class="card-body p-0" style="overflow-y: auto; max-height: 400px;">
+                <table class="table table-striped mb-0 text-center align-middle">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>날짜</th>
+                            <th>유형</th>
+                            <th>가격</th>
+                            <th>수량</th>
+                            <th>금액</th>
+                            <th>잔고</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tradeLogBody">
+                        <tr>
+                            <td colspan="6" class="text-muted py-4">결과가 여기에 표시됩니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    let currentLogic = null; // Store selected strategy logic object
+    let myChart = null;
+
+    // Auto-select strategy if ID passed in URL
+    window.onload = function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sId = urlParams.get('strategy_id');
+        if (sId) {
+            const sel = document.getElementById('strategySelect');
+            sel.value = sId;
+            loadStrategyInfo();
+        }
+    }
+
+    function loadStrategyInfo() {
+        const sel = document.getElementById('strategySelect');
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt.value) {
+            currentLogic = null;
+            document.getElementById('strategyDesc').innerText = "";
+            return;
+        }
+
+        // Logic might be single string or python dict string representation if not carefully handled.
+        // In template, |safe usually prints valid JSON if logic is JSONField. 
+        // Need to ensure quotes are handled.
+        try {
+            // Note: data attributes in HTML5 might automatically parse JSON
+            // But sometimes django template renders string with single quotes which fails JSON.parse
+            // We'll rely on server sending valid JSON.
+            // Wait, s.logic is text in template. We should have serialized it or ensure it's valid JSON.
+            // Django JSONField renders as python dict (single quotes) sometimes.
+            // To be safe, we should assume the view passed it directly or we need a proper serializer.
+            // Let's check how we passed it: 'logic': strategy.logic
+            // It's safer to fetch logic via API OR careful rendering.
+
+            // For now, let's try fetch via API for safety and cleaner DOM.
+            fetchStrategyDetail(opt.value);
+
+        } catch (e) { console.error(e); }
+
+        // Pre-select ticker
+        const preferredTicker = opt.getAttribute('data-ticker');
+        if (preferredTicker) {
+            const stockSel = document.getElementById('stockSelect');
+            if (stockSel.querySelector(`option[value="${preferredTicker}"]`)) {
+                stockSel.value = preferredTicker;
+            }
+        }
+    }
+
+    async function fetchStrategyDetail(id) {
+        try {
+            const resp = await fetch(`/core/strategy/${id}/load/`);
+            const res = await resp.json();
+            if (res.success) {
+                currentLogic = res.data.logic;
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function runBacktest() {
+        if (!currentLogic) return alert("전략을 선택해주세요.");
+
+        const stockCode = document.getElementById('stockSelect').value;
+        const capital = document.getElementById('initialCapital').value;
+
+        // Remove DCA config if present in logic, or let server handle it. 
+        // User asked to remove settings, so logic passes as is. 
+        // (If saved logic has DCA, it runs. But builder doesn't let save new DCA)
+
+        const btn = document.querySelector('.btn-success');
+        const oldText = btn.innerText;
+        btn.innerText = "⏳ 실행 중...";
+        btn.disabled = true;
+
+        try {
+            const resp = await fetch('/core/backtest/run/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ ticker: stockCode, capital: capital, strategy: currentLogic })
+            });
+            const res = await resp.json();
+            if (!res.success) throw new Error(res.error || "Unknown Error");
+            updateDashboard(res.data);
+        } catch (e) {
+            alert("시뮬레이션 실패: " + e.message);
+        } finally {
+            btn.innerText = oldText;
+            btn.disabled = false;
+        }
+    }
+
+    function updateDashboard(data) {
+        document.getElementById('resultStats').style.display = 'flex';
+
+        // KPIs
+        document.getElementById('resFinalCapital').innerText = Number(data.final_equity).toLocaleString() + "원";
+
+        const ret = data.total_return;
+        const retEl = document.getElementById('resReturn');
+        retEl.innerText = ret.toFixed(2) + "%";
+        retEl.className = `card-text fw-bold ${ret >= 0 ? 'text-white' : 'text-danger'}`;
+        // Note: card bg is success/danger already, so maybe keep white text
+
+        document.getElementById('resMdd').innerText = data.mdd.toFixed(2) + "%";
+        document.getElementById('resTrades').innerText = data.trades.length + "회";
+        document.getElementById('resWinRate').innerText = (data.win_rate || 0).toFixed(1) + "%";
+        document.getElementById('resProfitFactor').innerText = (data.profit_factor || 0).toFixed(2);
+
+        // CSV
+        document.getElementById('csvTicker').value = document.getElementById('stockSelect').value;
+        document.getElementById('csvCapital').value = document.getElementById('initialCapital').value;
+        document.getElementById('csvStrategy').value = JSON.stringify(currentLogic);
+        document.getElementById('btnDownloadCsv').disabled = false;
+
+        // Chart
+        renderChart(data);
+
+        // Grid
+        renderLog(data.trades);
+    }
+
+    function renderChart(data) {
+        const ctx = document.getElementById('equityChart').getContext('2d');
+        if (myChart) myChart.destroy();
+
+        const labels = data.equity_curve.map(d => d.date);
+        const equity = data.equity_curve.map(d => d.equity);
+
+        // Markers
+        const buyPoints = [];
+        const sellPoints = [];
+        const dateToIndex = {};
+        labels.forEach((d, i) => dateToIndex[d] = i);
+
+        data.trades.forEach(t => {
+            const idx = dateToIndex[t.date];
+            if (idx !== undefined) {
+                if (t.type.includes('BUY')) buyPoints.push({ x: t.date, y: equity[idx] });
+                else if (t.type.includes('SELL')) sellPoints.push({ x: t.date, y: equity[idx] });
+            }
+        });
+
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: '자산 추이',
+                        data: equity,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 0
+                    },
+                    {
+                        label: '매수',
+                        data: buyPoints,
+                        type: 'scatter',
+                        backgroundColor: 'red',
+                        pointStyle: 'triangle',
+                        pointRadius: 6
+                    },
+                    {
+                        label: '매도',
+                        data: sellPoints,
+                        type: 'scatter',
+                        backgroundColor: 'blue',
+                        pointStyle: 'triangle',
+                        rotation: 180,
+                        pointRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+            }
+        });
+    }
+
+    function renderLog(trades) {
+        const tbody = document.getElementById('tradeLogBody');
+        tbody.innerHTML = '';
+        if (trades.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-muted py-4">거래 내역이 없습니다.</td></tr>';
+            return;
+        }
+
+        trades.forEach(t => {
+            const tr = document.createElement('tr');
+            const isBuy = t.type.includes('BUY');
+            tr.innerHTML = `
+                <td>${t.date.slice(2)}</td>
+                <td><span class="badge ${isBuy ? 'bg-danger' : 'bg-primary'}">${t.type}</span></td>
+                <td>${Number(t.price).toLocaleString()}</td>
+                <td>${t.quantity}</td>
+                <td>${Number(t.amount).toLocaleString()}</td>
+                <td class="fw-bold">${Number(t.balance).toLocaleString()}</td>
+             `;
+            tbody.appendChild(tr);
+        });
+    }
+</script>
+{% endblock %}

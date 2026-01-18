@@ -14,7 +14,7 @@ class AdminAccessRestrictionMiddleware:
         if request.path.startswith('/admin/'):
             if request.user.is_authenticated and not request.user.is_superuser:
                 # 일반 유저는 메인 페이지로 리다이렉트
-                return redirect('index')
+                return redirect('dashboard')
                 # 또는 403 에러 발생 시: raise PermissionDenied
             
         return self.get_response(request)

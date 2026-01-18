@@ -1,16 +1,16 @@
 {% extends 'base.html' %}
 {% load humanize %}
 
-{% block title %}꼼망컴퍼니 - 1인 기업을 위한 AI 경영 비서{% endblock %}
+{% block title %}STEADY - 꾸준한 투자를 위한 AI 경영 비서{% endblock %}
 
 {% block content %}
 <div class="landing-container fade-in">
     <!-- Hero Section -->
     <div class="hero-section text-center mb-5">
-        <h1 class="display-4 fw-bold text-dark mb-3">AI와 함께하는 스마트한 1인 기업 경영</h1>
+        <h1 class="display-4 fw-bold text-dark mb-3">STEADY: 흔들리지 않는 장기 투자</h1>
         <p class="lead text-muted mb-4">
-            복잡한 결재, 투자 관리, 조직 운영... 이제 혼자 고민하지 마세요.<br>
-            **꼼망컴퍼니**가 당신만의 AI 경영 비서팀을 제공합니다.
+            단기적인 등락에 일희일비하지 마세요.<br>
+            STEADY의 AI 임원진과 함께 꾸준하고 견고한 자산을 만들어갑니다.
         </p>
         <div class="hero-buttons">
             {% if user.is_authenticated %}
@@ -26,9 +26,20 @@
     <hr class="my-5 opacity-25">
 
     <!-- Service Introduction -->
-    <section id="service" class="mb-6">
+    <section id="service" class="section-gap">
         <div class="row align-items-center">
             <div class="col-md-6 mb-4 mb-md-0">
+                <div class="p-4 bg-white rounded-4 shadow-sm border border-light">
+                    <div class="fs-1 mb-3">🌱</div>
+                    <h2 class="fw-bold mb-3">꾸준함의 힘</h2>
+                    <p class="text-secondary">
+                        투자의 본질은 잃지 않는 것입니다.<br>
+                        STEADY는 안정적인 장기 투자를 지향하며,<br>
+                        당신의 자산이 시간이 지남에 따라 견고해지도록 돕습니다.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-6">
                 <div class="p-4 bg-white rounded-4 shadow-sm border border-light">
                     <div class="fs-1 mb-3">🤖</div>
                     <h2 class="fw-bold mb-3">나만의 AI 임원진</h2>
@@ -39,24 +50,13 @@
                     </p>
                 </div>
             </div>
-            <div class="col-md-6">
-                <div class="p-4 bg-white rounded-4 shadow-sm border border-light">
-                    <div class="fs-1 mb-3">📊</div>
-                    <h2 class="fw-bold mb-3">올인원 경영 플랫폼</h2>
-                    <p class="text-secondary">
-                        전자결재부터 주식 포트폴리오 관리, 사내 메신저까지.<br>
-                        흩어져 있던 경영 도구들을 하나로 통합했습니다.<br>
-                        직관적인 UI로 복잡한 업무도 손쉽게 처리하세요.
-                    </p>
-                </div>
-            </div>
         </div>
     </section>
 
-    <!-- Advantages -->
-    <section id="features" class="mb-6 text-center">
-        <h6 class="text-primary fw-bold text-uppercase ls-1">Why Choose Us</h6>
-        <h2 class="fw-bold mb-5">꼼망컴퍼니만의 특별함</h2>
+    <!-- Advantages (Pros & Cons) -->
+    <section id="features" class="section-gap text-center">
+        <h6 class="text-primary fw-bold text-uppercase ls-1">Pros & Cons</h6>
+        <h2 class="fw-bold mb-5">STEADY의 장단점</h2>
 
         <div class="row g-4">
             <div class="col-md-4">
@@ -99,7 +99,7 @@
     </section>
 
     <!-- Pricing -->
-    <section id="pricing" class="mb-5">
+    <section id="pricing" class="section-gap">
         <div class="text-center mb-5">
             <h6 class="text-primary fw-bold text-uppercase ls-1">Pricing Plan</h6>
             <h2 class="fw-bold">합리적인 요금제</h2>
@@ -179,11 +179,17 @@
 </div>
 
 <style>
+    .section-gap {
+        margin-bottom: 200px;
+        /* Increased margin significantly */
+    }
+
     .landing-container {
         max-width: 1000px;
         margin: 0 auto;
         padding-top: 40px;
-        padding-bottom: 80px;
+        padding-bottom: 150px;
+        /* Increased bottom padding */
     }
 
     .hover-lift {
