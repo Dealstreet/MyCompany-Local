@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: #1e293b;">👑 마스터 대시보드 (사용자 관리)</h3>
+    </div>
+
+    <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+        <div class="card-body p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="bg-light">
+                        <tr>
+                            <th scope="col" class="py-3 ps-4 rounded-start">ID</th>
+                            <th scope="col" class="py-3">사용자명 (메일)</th>
+                            <th scope="col" class="py-3">이름 (별명)</th>
+                            <th scope="col" class="py-3">소속 회사</th>
+                            <th scope="col" class="py-3">가입일</th>
+                            <th scope="col" class="py-3">상태</th>
+                            <th scope="col" class="py-3 pe-4 text-end rounded-end">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td class="ps-4 fw-bold text-muted">#{{ u.id }}</td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ u.username }}</div>
+                                <div class="text-muted small">{{ u.email|default:"-" }}</div>
+                            </td>
+                            <td>
+                                {{ u.last_name }}{{ u.first_name }}
+                                {% if u.nickname %}
+                                <span class="badge bg-secondary rounded-pill ms-1">{{ u.nickname }}</span>
+                                {% endif %}
+                                {% if u.is_superuser %}
+                                <span class="badge bg-danger rounded-pill ms-1">Master</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if u.organization %}
+                                <span class="fw-bold text-primary">{{ u.organization.name }}</span>
+                                <div class="text-muted small">{{ u.role }}</div>
+                                {% else %}
+                                <span class="text-dark bg-warning px-2 py-1 rounded small">미소속</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">{{ u.date_joined|date:"Y-m-d" }}</td>
+                            <td>
+                                {% if u.is_active %}
+                                <span
+                                    class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3">Active</span>
+                                {% else %}
+                                <span
+                                    class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-3">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <form action="{% url 'master_user_toggle_status' u.id %}" method="post"
+                                    onsubmit="return confirm('상태를 변경하시겠습니까?');">
+                                    {% csrf_token %}
+                                    {% if u.is_active %}
+                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" {% if
+                                        u.is_superuser %}disabled title="최고 관리자는 비활성화 불가" {% endif %}>
+                                        정지 (비활성화)
+                                    </button>
+                                    {% else %}
+                                    <button type="submit" class="btn btn-primary btn-sm rounded-pill px-3">
+                                        활성화
+                                    </button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                가입된 사용자가 없습니다.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

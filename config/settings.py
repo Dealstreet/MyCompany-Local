@@ -36,6 +36,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # [New] SaaS 보안: 일반 사용자 관리자 페이지 접근 차단
+    'core.middleware.AdminAccessRestrictionMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -113,3 +115,6 @@ AUTH_USER_MODEL = 'core.User'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'index'
 LOGOUT_REDIRECT_URL = 'login'
+
+# 메시지 저장소 설정
+MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'

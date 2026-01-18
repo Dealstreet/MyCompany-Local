@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: #1e293b;">직원 관리</h3>
+        <a href="{% url 'agent_create' %}" class="btn btn-primary rounded-pill px-4 fw-bold">
+            + 직원 등록
+        </a>
+    </div>
+
+    <div class="row g-4">
+        {% for agent in agents %}
+        <div class="col-12 col-md-6 col-lg-4 col-xl-3">
+            <div class="card h-100 border-0 shadow-sm" style="border-radius: 20px; transition: transform 0.2s;">
+                <div class="card-body p-4 d-flex flex-column align-items-center text-center">
+                    <div class="mb-3 position-relative">
+                        {% if agent.profile_image %}
+                        <img src="{{ agent.profile_image.url }}" class="rounded-circle object-fit-cover border"
+                            style="width: 80px; height: 80px;" alt="{{ agent.name }}">
+                        {% else %}
+                        <div class="rounded-circle bg-light d-flex align-items-center justify-content-center border"
+                            style="width: 80px; height: 80px; font-size: 32px;">
+                            🤖
+                        </div>
+                        {% endif %}
+                        <span class="position-absolute bottom-0 end-0 badge rounded-pill bg-dark border border-white">
+                            {{ agent.model_name }}
+                        </span>
+                    </div>
+
+                    <h5 class="fw-bold mb-1">{{ agent.name }} <span class="text-muted small fw-normal">{{ agent.position
+                            }}</span></h5>
+                    <p class="text-secondary mb-2 small">{{ agent.department_obj.name|default:"소속미정" }}</p>
+
+                    <div class="bg-light rounded p-2 mb-3 w-100 text-start">
+                        <small class="d-block text-truncate text-muted" title="{{ agent.role }}">
+                            <strong>Role:</strong> {{ agent.role }}
+                        </small>
+                    </div>
+
+                    <div class="mt-auto d-flex gap-2 w-100">
+                        <a href="{% url 'agent_edit' agent.pk %}"
+                            class="btn btn-outline-secondary btn-sm flex-fill rounded-pill">
+                            수정
+                        </a>
+                        <form action="{% url 'agent_delete' agent.pk %}" method="post" class="flex-fill"
+                            onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm w-100 rounded-pill">
+                                삭제
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12 text-center py-5 text-muted">
+            <div style="font-size: 48px; margin-bottom: 20px;">🤖</div>
+            <p>등록된 직원이 없습니다.<br>새로운 AI 직원을 등록해주세요.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<style>
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05) !important;
+    }
+</style>
+{% endblock %}

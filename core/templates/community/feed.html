@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 600px;">
+    <!-- Feed Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: #1e293b;">📱 뉴스 피드</h3>
+        <a href="{% url 'my_info' %}" class="btn btn-light rounded-circle"
+            style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+            </svg>
+        </a>
+    </div>
+
+    <!-- Feed Items -->
+    <div class="d-flex flex-column gap-4">
+        {% for item in feed_items %}
+        {% with post=item.post type=item.type %}
+
+        {% if type == 'popular' %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-danger rounded-pill px-2">🔥 인기 추천</span>
+            <small class="text-muted">회원님이 좋아할 만한 글입니다</small>
+        </div>
+        {% endif %}
+
+        <div class="card border-0 shadow-sm" style="border-radius: 20px; overflow: hidden;">
+            <!-- Post Header -->
+            <div class="card-header bg-white border-0 p-3 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-light d-flex align-items-center justify-content-center text-muted fw-bold border"
+                        style="width: 40px; height: 40px;">
+                        {{ post.author.last_name|slice:":1" }}
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark" style="font-size: 0.95rem;">
+                            {{ post.author.last_name }}{{ post.author.first_name }}
+                        </div>
+                        <div class="text-muted small" style="font-size: 0.8rem;">
+                            {{ post.organization.name }} · {{ post.created_at|timesince }} 전
+                        </div>
+                    </div>
+                </div>
+
+                {% if request.user != post.author %}
+                <form action="{% url 'follow_toggle' post.author.id %}" method="post">
+                    {% csrf_token %}
+                    {% if post.author in request.user.following.all %}
+                    <!-- Note: This check logic in template is n+1 heavy. 
+                                  Optimized way is to annotate 'is_following' in view 
+                                  or use a set lookup if passed from view.
+                                  For MVP feed, let's assume 'Follow' button shows if not followed? 
+                                  Or simply toggle. 'Follow/Unfollow' text requires knowing state.
+                                  Let's assume type='following' implies we follow (unless user unfollowed recently).
+                                  type='popular' we likely don't follow.
+                             -->
+                    {% if type == 'following' %}
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3">언팔로우</button>
+                    {% else %}
+                    <button class="btn btn-sm btn-primary rounded-pill px-3">팔로우</button>
+                    {% endif %}
+                    {% endif %}
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- Post Content -->
+            <div class="card-body p-3 pt-0">
+                <a href="{% url 'post_detail' post.pk %}" class="text-decoration-none text-dark">
+                    <h5 class="fw-bold mb-2">{{ post.title }}</h5>
+                    <p class="text-secondary mb-3" style="font-size: 0.95rem; line-height: 1.6;">
+                        {{ post.content|striptags|truncatechars:150 }}
+                    </p>
+                </a>
+
+                <div class="d-flex gap-2">
+                    <span class="badge bg-light text-dark border rounded-pill px-2">
+                        {{ post.get_category_display }}
+                    </span>
+                    <span class="text-muted small align-self-center">
+                        조회 {{ post.views }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+        {% empty %}
+        <div class="text-center py-5 text-muted">
+            <div style="font-size: 48px; margin-bottom: 20px;">📭</div>
+            <p>아직 피드에 표시할 글이 없습니다.</p>
+            <a href="{% url 'post_list' %}?category=all" class="btn btn-primary rounded-pill px-4 mt-2">
+                커뮤니티 둘러보기
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

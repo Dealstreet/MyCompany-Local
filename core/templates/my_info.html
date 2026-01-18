@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1000px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: #1e293b;">내 정보 관리</h3>
+
+        <!-- Social Stats -->
+        <div class="d-flex gap-3">
+            <div class="text-center px-3 py-2 bg-white rounded-pill shadow-sm border">
+                <small class="text-muted d-block" style="font-size: 0.75rem;">팔로워</small>
+                <span class="fw-bold text-dark">{{ followers_count }}</span>
+            </div>
+            <div class="text-center px-3 py-2 bg-white rounded-pill shadow-sm border" style="cursor: pointer;"
+                data-bs-toggle="modal" data-bs-target="#followingModal">
+                <small class="text-muted d-block" style="font-size: 0.75rem;">팔로잉</small>
+                <span class="fw-bold text-dark">{{ following_count }}</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left: User & Company Info -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm mb-4" style="border-radius: 20px;">
+                <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0">👤 기본 정보 수정</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="update_info" value="1">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small">아이디 (변경불가)</label>
+                            <input type="text" class="form-control" value="{{ user.username }}" disabled>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold text-muted small">성</label>
+                                {{ user_form.last_name }}
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label fw-bold text-muted small">이름</label>
+                                {{ user_form.first_name }}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small">생년월일</label>
+                            {{ user_form.birth_date }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small">이메일</label>
+                            {{ user_form.email }}
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h5 class="fw-bold mb-3">🏢 회사 정보</h5>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small">회사명</label>
+                            {{ org_form.name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-muted small">회사 설명</label>
+                            {{ org_form.description }}
+                        </div>
+
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary rounded-pill fw-bold py-2">
+                                정보 저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Password Change Link -->
+            <div class="text-center">
+                <form method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="update_password" value="1">
+                    <button type="submit" class="btn btn-link text-muted text-decoration-none small">
+                        비밀번호 변경하기 &gt;
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Right: Portfolio Disclosure Settings -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm" style="border-radius: 20px; height: 100%;">
+                <div
+                    class="card-header bg-white border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">🔒 포트폴리오 공개 설정</h5>
+                    <span class="badge bg-light text-dark border">
+                        CEO 랭킹 참여용
+                    </span>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted small mb-4">
+                        체크된 종목은 <strong>포트폴리오 랭킹</strong> 페이지에서 다른 CEO들에게 수익률이 공개됩니다.<br>
+                        (보유 수량과 금액은 공개되지 않으며, <strong>수익률(%)</strong>만 공개됩니다.)
+                    </p>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="update_disclosure" value="1">
+
+                        <div class="list-group list-group-flush mb-4 border rounded"
+                            style="max-height: 400px; overflow-y: auto;">
+                            {% for item in stock_disclosures %}
+                            <label class="list-group-item d-flex justify-content-between align-items-center py-3"
+                                style="cursor: pointer;">
+                                <div class="d-flex align-items-center gap-3">
+                                    <input class="form-check-input flex-shrink-0 m-0" type="checkbox"
+                                        name="public_stocks" value="{{ item.stock.id }}"
+                                        style="width: 20px; height: 20px;" {% if item.is_public %}checked{% endif %}>
+                                    <div>
+                                        <div class="fw-bold">{{ item.stock.name }}</div>
+                                        <div class="text-muted small track-code">{{ item.stock.code }}</div>
+                                    </div>
+                                </div>
+                                <span
+                                    class="badge {% if item.is_public %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %} rounded-pill">
+                                    {% if item.is_public %}공개{% else %}비공개{% endif %}
+                                </span>
+                            </label>
+                            {% empty %}
+                            <div class="text-center py-5 text-muted">
+                                보유 중인 관심 종목이 없습니다.
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-dark rounded-pill fw-bold py-2">
+                                공개 설정 저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Following Management Modal -->
+<div class="modal fade" id="followingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow" style="border-radius: 20px;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">팔로잉 목록</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="list-group list-group-flush">
+                    {% for follow in following_list %}
+                    <div
+                        class="list-group-item px-0 py-3 border-bottom d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle bg-light d-flex align-items-center justify-content-center text-muted fw-bold border"
+                                style="width: 40px; height: 40px;">
+                                {{ follow.following.last_name|slice:":1" }}
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark">{{ follow.following.last_name }}{{
+                                    follow.following.first_name }}</div>
+                                <div class="text-muted small">{{ follow.following.organization.name }}</div>
+                            </div>
+                        </div>
+                        <form action="{% url 'follow_toggle' follow.following.id %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit"
+                                class="btn btn-outline-secondary btn-sm rounded-pill px-3">언팔로우</button>
+                        </form>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5 text-muted">
+                        아직 팔로우한 사람이 없습니다. <br>
+                        커뮤니티에서 활동하는 다른 CEO들을 찾아보세요!
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

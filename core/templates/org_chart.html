@@ -1,141 +1,309 @@
 {% extends "base.html" %}
 
-{% block title %}조직도 - 꼼망컴퍼니 CIS{% endblock %}
+{% block title %}조직도 - 꼼망컴퍼니{% endblock %}
 
 {% block content %}
-<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<!-- Tailwind CSS (via CDN for styling nodes) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- D3.js v7 -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
 
 <style>
-    /* 세로 간격 */
-
     .org-container {
-        padding: 30px;
-        background-color: #f1f5f9;
-        min-height: 100vh;
-        overflow: auto;
-    }
-
-    /* 노드 카드 공통 디자인 */
-    .node-card {
-        width: 160px;
-        padding: 10px;
-        border-radius: 8px;
-        background: white;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e2e8f0;
-        cursor: pointer;
-        transition: 0.2s;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-decoration: none;
-        color: inherit;
-    }
-
-    .node-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
-        border-color: #3b82f6;
-    }
-
-    /* CEO 스타일 */
-    .ceo-card {
-        border-top: 4px solid #3b82f6;
-        background: #fff;
-    }
-
-    .profile-icon {
-        font-size: 24px;
-        margin-bottom: 5px;
-    }
-
-    /* 부서장 스타일 */
-    .dept-card {
-        background: #1e293b;
-        color: white;
-        border: none;
-        width: 140px;
-    }
-
-    .dept-card .node-name {
-        color: white;
-        font-weight: bold;
-    }
-
-    /* 직원 스타일 */
-    .agent-card {
-        min-height: 100px;
-    }
-
-    .img-circle {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: #f1f5f9;
-        margin-bottom: 8px;
+        width: 100%;
+        height: calc(100vh - 60px);
+        /* Subtract top nav height */
+        background-color: #f8fafc;
         overflow: hidden;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #e2e8f0;
-        font-size: 20px;
+        position: relative;
     }
 
-    /* 텍스트 스타일 */
-    .node-name {
-        font-weight: 800;
-        font-size: 14px;
-        margin-bottom: 2px;
-        color: #1e293b;
+    /* Reset global styles that might conflict, or scope execution */
+    svg {
+        width: 100%;
+        height: 100%;
+        cursor: grab;
     }
 
-    .node-role {
-        font-size: 11px;
-        color: #64748b;
+    svg:active {
+        cursor: grabbing;
     }
 
-    /* 구글 차트 기본 선택/호버 효과 완전 제거 */
-    .google-visualization-orgchart-node,
-    .google-visualization-orgchart-nodesel,
-    .google-visualization-orgchart-node-over {
-        border: none !important;
-        background-color: transparent !important;
-        background: transparent !important;
-        box-shadow: none !important;
-    }
-
-    .google-visualization-orgchart-node-medium {
-        font-size: 1em;
+    /* Link styling */
+    .link {
+        fill: none;
+        stroke: #94a3b8;
+        /* slate-400 */
+        stroke-width: 1.5px;
     }
 </style>
 
-<div class="org-container">
-    <div class="d-flex align-items-center mb-4 gap-2">
-        <h2 class="fw-bold text-dark m-0">👥 조직도 보기</h2>
-    </div>
-    <div class="d-flex justify-content-center">
-        <div id="chart_div"></div>
-    </div>
+<div class="org-container" id="org-container">
+    <!-- D3 Chart Container -->
 </div>
 
-<script type="text/javascript">
-    google.charts.load('current', { packages: ["orgchart"] });
-    google.charts.setOnLoadCallback(drawChart);
+<script>
+    // 1. Data Construction (Django -> JS)
+    const flatData = [];
 
-    function drawChart() {
-        var data = new google.visualization.DataTable();
-        data.addColumn('string', 'Name');
-        data.addColumn('string', 'Manager');
-        data.addColumn('string', 'ToolTip');
+    // CEO (Root)
+    {% if ceo %}
+    flatData.push({
+        id: "USER_{{ ceo.id }}",
+        parentId: null, // Root
+        name: "{{ ceo.nickname|default:ceo.username }}",
+        position: "{{ ceo.position|default:'CEO' }}",
+        type: "ceo",
+        image_url: "{% if ceo.profile_image %}{{ ceo.profile_image.url }}{% endif %}"
+    });
+    const rootId = "USER_{{ ceo.id }}";
+    {% else %}
+    // Fallback if no CEO
+    const rootId = "ROOT_ORG";
+    flatData.push({
+        id: rootId,
+        parentId: null,
+        name: "{{ user.organization.name }}",
+        position: "Organization",
+        type: "ceo",
+        image_url: ""
+    });
+    {% endif %}
 
-        // Django에서 넘겨준 데이터 파싱
-        var chartData = JSON.parse('{{ chart_data|escapejs }}');
-        data.addRows(chartData);
+    // Departments
+    {% for dept in departments %}
+    flatData.push({
+        id: "DEPT_{{ dept.id }}",
+        parentId: "{% if dept.parent %}DEPT_{{ dept.parent.id }}{% else %}" + rootId + "{% endif %}",
+        name: "{{ dept.name }}",
+        type: "dept",
+        position: "Department"
+    });
+    {% endfor %}
 
-        // 차트 그리기
-        var chart = new google.visualization.OrgChart(document.getElementById('chart_div'));
-        chart.draw(data, { 'allowHtml': true, 'nodeClass': 'my-node' });
+    // Agents
+    {% for agent in all_agents %}
+    flatData.push({
+        id: "AGENT_{{ agent.id }}",
+        parentId: "{% if agent.department_obj %}DEPT_{{ agent.department_obj.id }}{% else %}" + rootId + "{% endif %}",
+        name: "{{ agent.name }}",
+        position: "{{ agent.position }}",
+        role: "{{ agent.role }}",
+        type: "agent",
+        real_id: "{{ agent.id }}", // For linking
+        image_url: "{% if agent.profile_image %}{{ agent.profile_image.url }}{% endif %}"
+    });
+    {% endfor %}
+
+    // 2. Main D3 Render Function
+    function renderChart() {
+        const container = document.getElementById('org-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        // Clear previous
+        d3.select("#org-container").selectAll("*").remove();
+
+        const svg = d3.select("#org-container")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .call(d3.zoom().on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            }))
+            .append("g");
+
+        const g = svg.append("g")
+            .attr("transform", `translate(100, ${height / 2})`); // Start from Left Center
+
+        // Stratify data
+        let root;
+        try {
+            root = d3.stratify()
+                .id(d => d.id)
+                .parentId(d => d.parentId)
+                (flatData);
+        } catch (e) {
+            console.error("Data Stratification Error:", e);
+            d3.select("#org-container").append("div")
+                .attr("class", "p-10 text-center text-red-500 font-bold")
+                .text("조직도 데이터 구조에 오류가 있습니다 (순환 참조 또는 고아 노드).");
+            return;
+        }
+
+        // Tree Layout (Horizontal: height is x, width is y conceptually in d3.tree if we swap)
+        // But standard d3.tree is x=horizontal for siblings, y=depth.
+        // To make it horizontal, we swap x and y in rendering.
+        const treeLayout = d3.tree().nodeSize([110, 300]); // y-spacing (node height), x-spacing (depth width)
+
+        // Collapse/Expand state tracking
+        root.x0 = height / 2; // Initial vertical center
+        root.y0 = 0;          // Initial left
+
+        // Initial update
+        update(root);
+
+        function update(source) {
+            const treeData = treeLayout(root);
+            const nodes = treeData.descendants();
+            const links = treeData.links();
+
+            // Normalize for fixed-depth (horizontal spacing)
+            nodes.forEach(d => { d.y = d.depth * 280; }); // d.y becomes horizontal position (depth)
+
+            // --- Nodes ---
+            const node = g.selectAll('g.node')
+                .data(nodes, d => d.id || (d.id = ++i));
+
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr("transform", d => `translate(${source.y0},${source.x0})`) // Swap x/y for start
+                .on("click", click);
+
+            // Using foreignObject for Tailwind HTML Cards
+            const foreign = nodeEnter.append("foreignObject")
+                .attr("width", 250) // Wider card for horizontal
+                .attr("height", 90)
+                .attr("x", 0)       // Anchor left
+                .attr("y", -45)     // Center vertically relative to node
+                .style("overflow", "visible");
+
+            foreign.append("xhtml:div")
+                .style("width", "250px")
+                .style("height", "100%")
+                .html(d => getNodeHTML(d.data));
+
+            // Transition nodes to their new position.
+            const nodeUpdate = node.merge(nodeEnter).transition()
+                .duration(200)
+                .attr("transform", d => `translate(${d.y},${d.x})`); // Swap x/y: y is depth (horiz), x is position (vert)
+
+            // Transition exiting nodes to the parent's new position.
+            const nodeExit = node.exit().transition()
+                .duration(200)
+                .attr("transform", d => `translate(${source.y},${source.x})`)
+                .remove();
+
+            nodeExit.select("foreignObject").style("opacity", 0);
+
+            // --- Links ---
+            const link = g.selectAll('path.link')
+                .data(links, d => d.target.id);
+
+            // Enter any new links at the parent's previous position.
+            const linkEnter = link.enter().insert('path', "g")
+                .attr("class", "link")
+                .attr('d', d => {
+                    const o = { x: source.x0, y: source.y0 };
+                    return diagonal(o, o);
+                });
+
+            // Transition links to their new position.
+            link.merge(linkEnter).transition()
+                .duration(200)
+                .attr('d', d => diagonal(d.source, d.target));
+
+            // Transition exiting links to the parent's new position.
+            link.exit().transition()
+                .duration(200)
+                .attr('d', d => {
+                    const o = { x: source.x, y: source.y };
+                    return diagonal(o, o);
+                })
+                .remove();
+
+            // Stash the old positions for transition.
+            nodes.forEach(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+        }
+
+        // Helper: Curved Path (Horizontal)
+        function diagonal(s, d) {
+            // Horizontal hierarchy: x is vert, y is horiz (swapped)
+            // We draw from (s.y, s.x) to (d.y, d.x)
+            return `M ${s.y} ${s.x}
+                    C ${(s.y + d.y) / 2} ${s.x},
+                      ${(s.y + d.y) / 2} ${d.x},
+                      ${d.y} ${d.x}`;
+        }
+
+        // Helper: Node HTML Template with Tailwind
+        function getNodeHTML(data) {
+            if (data.type === 'ceo') {
+                return `
+                    <div class="w-full h-full bg-slate-900 rounded-xl shadow-lg border-2 border-slate-700 flex items-center p-3 gap-3 hover:scale-105 transition-transform cursor-pointer">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-700 border border-slate-500 shrink-0 flex items-center justify-center text-xl">
+                            ${data.image_url ? `<img src="${data.image_url}" class="w-full h-full object-cover">` : '👑'}
+                        </div>
+                        <div class="flex flex-col text-left">
+                            <span class="text-white font-extrabold text-sm leading-tight">${data.name}</span>
+                            <span class="text-slate-400 text-xs font-bold leading-tight">${data.position}</span>
+                        </div>
+                    </div>
+                `;
+            } else if (data.type === 'dept') {
+                return `
+                    <div class="w-full h-auto bg-slate-100 rounded-lg shadow border border-slate-300 flex flex-col items-center justify-center py-2 px-3 hover:bg-white transition-colors cursor-pointer group">
+                        <span class="text-slate-700 font-bold text-sm group-hover:text-blue-600 transition-colors">${data.name}</span>
+                        <div class="w-4 h-4 bg-slate-300 rounded-full mt-1 flex items-center justify-center text-white text-[10px]">
+                            ▼
+                        </div>
+                    </div>
+                `;
+            } else { // Agent
+                return `
+                    <div class="w-full h-full bg-white rounded-xl shadow-md border border-slate-200 flex items-center p-3 gap-3 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group" onclick="openChat('${data.real_id}')">
+                        <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100 shrink-0 border border-slate-100 flex items-center justify-center text-xl">
+                            ${data.image_url ? `<img src="${data.image_url}" class="w-full h-full object-cover">` : '🤖'}
+                        </div>
+                        <div class="flex flex-col text-left overflow-hidden">
+                            <div class="flex items-baseline gap-1">
+                                <span class="text-slate-900 font-black text-sm truncate">${data.name}</span>
+                                <span class="text-slate-500 font-bold text-xs truncate">${data.position}</span>
+                            </div>
+                            <span class="text-slate-400 text-[10px] truncate">${data.role}</span>
+                        </div>
+                        <!-- Chat Icon Overlay -->
+                        <div class="absolute top-2 right-2 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            💬
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Toggle children on click
+        function click(event, d) {
+            // Prevent event bubbling if clicking internal elements like buttons (if any)
+            if (d.data.type === 'agent') {
+                // Agent click handled by inline onclick, but need to stop propagation if we don't want collapse
+                event.stopPropagation();
+                window.location.href = `/messenger/${d.data.real_id}/`;
+                return;
+            }
+
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else {
+                d.children = d._children;
+                d._children = null;
+            }
+            update(d);
+        }
     }
+
+    // Agent Click Handler
+    function openChat(agentId) {
+        if (agentId) {
+            window.location.href = `/messenger/${agentId}/`;
+        }
+    }
+
+    // Init
+    document.addEventListener("DOMContentLoaded", renderChart);
+    window.addEventListener("resize", renderChart); // Responsive
 </script>
 {% endblock %}

@@ -292,25 +292,74 @@ def update_stock(stock_obj):
                 if ctry == 'South Korea': stock_obj.country = '한국'
                 elif ctry == 'United States': stock_obj.country = '미국'
                 else: stock_obj.country = ctry
+            
+            # [Naver Integration] 
+            # Prioritize Naver for Korean stocks or general description
+            # This logic was migrated from views.py
+            if stock_obj.code.isdigit() and len(stock_obj.code) == 6:
+                naver_data = get_naver_stock_extra_info(stock_obj.code)
+                if naver_data.get('market_cap'):
+                    stock_obj.market_cap = naver_data['market_cap']
                 
+                # Naver Description
+                if naver_data.get('description'):
+                    stock_obj.description = naver_data['description']
+                
+                # Naver Name Check
+                naver_name = get_naver_stock_name(stock_obj.code)
+                if naver_name and naver_name != stock_obj.name:
+                    stock_obj.name = naver_name
+                    
         except Exception as e:
             print(f"Error fetching full info for {stock_obj.name}: {e}")
 
-        # 3. Update Candle Data (3 Years, Weekly) for Charts
+        # 3. Update Candle Data (Optimize: Fetch 1mo and merge)
         try:
-            hist = ticker.history(period="3y", interval="1wk")
-            # Format: [[timestamp, open, high, low, close], ...] or simple approach
-            # Using simple list of objects or dicts
-            data = []
+            # Fetch recent 1 month data
+            hist = ticker.history(period="1mo", interval="1wk")
+            
+            new_data = []
             for date, row in hist.iterrows():
                 # ApexCharts expects timestamp in ms
                 ts = int(date.timestamp() * 1000)
-                # O, H, L, C
-                data.append({
+                new_data.append({
                     'x': ts,
                     'y': [row['Open'], row['High'], row['Low'], row['Close']]
                 })
-            stock_obj.candle_data = data
+            
+            # Load existing data
+            existing_data = stock_obj.candle_data if isinstance(stock_obj.candle_data, list) else []
+            
+            if not existing_data:
+                # If no existing data, maybe fetch 3y for initialization (first time)
+                # But user said "update ... recent 1 month", implying optimization for existing.
+                # If truly empty, we might want to fetch more. 
+                # Let's check if we should fallback to 3y if empty.
+                # For safety, if empty, let's just fetch 3y once.
+                hist_full = ticker.history(period="3y", interval="1wk")
+                full_data = []
+                for date, row in hist_full.iterrows():
+                    ts = int(date.timestamp() * 1000)
+                    full_data.append({
+                        'x': ts,
+                        'y': [row['Open'], row['High'], row['Low'], row['Close']]
+                    })
+                stock_obj.candle_data = full_data
+            else:
+                # Merger Strategy:
+                # Create dict from existing by timestamp for easy lookup/overwrite
+                data_map = {item['x']: item for item in existing_data}
+                
+                # Update with new data
+                for item in new_data:
+                    data_map[item['x']] = item
+                
+                # Convert back to list and sort
+                merged_data = list(data_map.values())
+                merged_data.sort(key=lambda k: k['x'])
+                
+                stock_obj.candle_data = merged_data
+
         except Exception as e:
             print(f"Error fetching history for {stock_obj.name}: {e}")
 
@@ -320,3 +369,63 @@ def update_stock(stock_obj):
     except Exception as e:
         print(f"Generla error updating {stock_obj.name}: {e}")
         return False
+
+import requests
+from bs4 import BeautifulSoup
+
+def get_naver_stock_name(code):
+    """
+    Naver 금융에서 종목명 크롤링 (실시간/정확)
+    """
+    try:
+        url = f"https://finance.naver.com/item/main.naver?code={code}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        name_tag = soup.select_one('.wrap_company h2 a')
+        if name_tag:
+            return name_tag.text.strip()
+            
+        return None
+    except Exception as e:
+        print(f"Naver checking failed: {e}")
+        return None
+
+def get_naver_stock_extra_info(code, exchange=''):
+    """
+    Naver 금융에서 시가총액 및 기업개요 가져오기
+    """
+    data = {'market_cap': None, 'description': None}
+    try:
+        url = f"https://finance.naver.com/item/main.naver?code={code}"
+        # 해외 주식일 경우 (Naver 해외증권은 구조가 다름 -> 여기서는 국내 위주 혹은 해외는 Yahoo 사용)
+        # Naver 해외 증권 URL 구조 확인 필요. 일단 국내만 시도.
+        
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        # 1. Market Cap (시가총액)
+        # <em id="_market_sum">367조 1,416</em>
+        mkt_sum = soup.select_one('#_market_sum')
+        if mkt_sum:
+            # 367조 1,416 -> 숫자 변환
+            # 조 단위 처리, 억 단위 처리
+            txt = mkt_sum.text.strip().replace(',', '').replace('조', '').replace(' ', '')
+            # "3671416" (억 단위) -> * 100,000,000
+            try:
+                data['market_cap'] = int(txt) * 100000000
+            except:
+                pass
+
+        # 2. Description (기업개요)
+        # <div class="summary_info"> <p> ... </p> </div>
+        summary = soup.select_one('.summary_info p')
+        if summary:
+            data['description'] = summary.text.strip()
+            
+        return data
+    except Exception as e:
+        print(f"Naver extra info failed: {e}")
+        return data

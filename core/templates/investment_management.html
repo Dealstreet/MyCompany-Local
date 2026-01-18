@@ -37,9 +37,9 @@
     /* 2. 상단 재무 현황판 (Financial Summary) */
     .summary-row {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        /* 5개 등분 */
-        gap: 20px;
+        grid-template-columns: repeat(4, 1fr);
+        /* 4개 등분 (Total Buy, Sell, Eval, Yield) */
+        gap: 30px;
         margin-bottom: 30px;
     }
 
@@ -84,10 +84,8 @@
         overflow: hidden;
     }
 
-    /* 그리드 내에서는 높이 100% 채우기 */
-    .main-grid-col .modern-card {
-        height: 100%;
-    }
+    /* 그리드 내에서는 높이 100% 채우기 (삭제) */
+    /* .main-grid-col .modern-card { height: 100%; } */
 
     .card-header-modern {
         padding: 20px 25px;
@@ -291,11 +289,13 @@
 
     <div class="main-grid-row">
 
-        <div class="main-grid-col">
+        <!-- Left Column: CEO Order + Waiting (Vertical Stack) -->
+        <div class="main-grid-col" style="flex: 2; display: flex; flex-direction: column; gap: 20px;">
+
+            <!-- 1. CEO Order -->
             <div class="modern-card">
                 <div class="card-header-modern">
                     <span>🚀 CEO 직접 주문 지시</span>
-
                 </div>
                 <div class="order-form-container">
                     <form method="post">
@@ -398,55 +398,39 @@
                                 // Helper: Parse number from string (remove commas)
                                 function parseNumber(str) {
                                     if (!str) return 0;
-                                    return Number(str.toString().replace(/,/g, ''));
+                                    return parseFloat(str.replace(/,/g, ''));
                                 }
 
-                                // Update Input Display Value
-                                function updateInputDisplay(input, val) {
-                                    if (input === qtyInput) {
-                                        input.value = val; // Qty is just integer usually? Or just text.
-                                        return;
-                                    }
-
-                                    // For Price/Total
-                                    input.value = formatNumber(val);
-                                }
-
-                                // Stock Selected -> Auto-fill Price and Suffix
-                                stockSelect.addEventListener('change', function () {
-                                    const selectedOption = this.options[this.selectedIndex];
-                                    const price = selectedOption.getAttribute('data-price');
-
-                                    updateCurrency();
-
-                                    if (price) {
-                                        // Auto-fill price with correct format
-                                        priceInput.value = formatNumber(Number(price));
-                                        updateTotal();
-                                    }
-                                });
-
-                                // Price or Qty Changed -> Update Total
-                                function updateTotal() {
-                                    const p = parseNumber(priceInput.value);
-                                    const q = Number(qtyInput.value);
-
-                                    if (p && q) {
-                                        const total = p * q;
-                                        // Total display matches country rule
-                                        totalInput.value = formatNumber(total);
-                                    }
-                                }
-
-                                // Total Changed -> Update Qty
                                 function updateQty() {
-                                    const t = parseNumber(totalInput.value);
-                                    const p = parseNumber(priceInput.value);
-                                    if (t && p) {
-                                        // Qty should be integer
-                                        qtyInput.value = Math.floor(t / p);
+                                    const total = parseNumber(totalInput.value);
+                                    let price = parseNumber(priceInput.value);
+
+                                    // If price is 0, try to get from data attribute
+                                    if (price === 0 && stockSelect.selectedIndex !== -1) {
+                                        price = parseFloat(stockSelect.options[stockSelect.selectedIndex].getAttribute('data-price')) || 0;
+                                    }
+
+                                    if (price > 0) {
+                                        const qty = Math.floor(total / price);
+                                        qtyInput.value = qty;
                                     }
                                 }
+
+                                function updateTotal() {
+                                    const price = parseNumber(priceInput.value);
+                                    const qty = parseNumber(qtyInput.value);
+                                    if (price > 0 && qty > 0) {
+                                        totalInput.value = formatNumber(price * qty);
+                                    }
+                                }
+
+                                // Events
+                                stockSelect.addEventListener('change', function () {
+                                    updateCurrency();
+                                    const price = parseFloat(this.options[this.selectedIndex].getAttribute('data-price')) || 0;
+                                    priceInput.value = formatNumber(price);
+                                    updateTotal();
+                                });
 
                                 // Input Event Handling for strict formatting
                                 priceInput.addEventListener('change', function () {
@@ -497,9 +481,8 @@
                     </form>
                 </div>
             </div>
-        </div>
 
-        <div class="main-grid-col">
+            <!-- 2. Approval Waiting -->
             <div class="modern-card">
                 <div class="card-header-modern">
                     <span>⏳ 승인 대기 ({{ drafts|length }})</span>
@@ -521,6 +504,43 @@
                     {% empty %}
                     <div style="padding: 40px; text-align: center; color:#94a3b8; font-size:13px;">
                         대기 중인 결재가 없습니다.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Trade Notifications -->
+        <div class="main-grid-col" style="flex: 1;">
+            <div class="modern-card" style="height: 100%;">
+                <div class="card-header-modern">
+                    <span>📩 체결 알림 (최근 5건)</span>
+                    <a href="{% url 'trade_notification_list' %}"
+                        style="text-decoration:none; font-size:12px; color:#3b82f6;">더보기</a>
+                </div>
+                <div class="draft-list-container">
+                    {% for noti in notifications %}
+                    <div class="draft-item" style="display: block;">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span
+                                class="badge {% if noti.trade_type == 'buy' %}bg-danger-subtle text-danger{% else %}bg-primary-subtle text-primary{% endif %} rounded-pill"
+                                style="font-size: 11px; padding: 4px 8px;">
+                                {{ noti.get_trade_type_display }}
+                            </span>
+                            <span style="font-size: 11px; color: #94a3b8;">{{ noti.created_at|date:"m-d H:i" }}</span>
+                        </div>
+                        <div style="font-weight: 700; color: #334155; font-size: 14px;">
+                            {{ noti.stock_name }}
+                        </div>
+                        <div class="d-flex justify-content-between mt-1" style="font-size: 12px;">
+                            <span class="text-secondary">{{ noti.quantity|intcomma }}주</span>
+                            <span style="font-weight:600;">{{ noti.amount|intcomma }}원</span>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div style="padding: 40px; text-align: center; color:#94a3b8; font-size:13px;">
+                        최근 알림이 없습니다.
                     </div>
                     {% endfor %}
                 </div>
@@ -606,7 +626,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert(data.message);
+                    // alert(data.message); // [Removed] Use Global Modal via Session
                     location.reload();
                 } else {
                     alert('오류: ' + data.message);

@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1000px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold m-0" style="color: #1e293b;">🏆 CEO 포트폴리오 랭킹</h3>
+            <p class="text-muted small mb-0 mt-1">포트폴리오를 공개한 CEO들의 수익률 순위입니다.</p>
+        </div>
+        <a href="{% url 'my_info' %}" class="btn btn-outline-primary rounded-pill px-4 fw-bold">
+            ⚙️ 내 공개 설정 관리
+        </a>
+    </div>
+
+    <!-- Filter/Sort -->
+    <div class="d-flex justify-content-end mb-3 gap-2">
+        <span class="text-muted small align-self-center me-2">정렬 기준:</span>
+        <a href="?sort=asset"
+            class="btn {% if sort_by == 'asset' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill btn-sm px-3">총
+            자산순</a>
+        <a href="?sort=yield"
+            class="btn {% if sort_by == 'yield' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill btn-sm px-3">총
+            수익률순</a>
+        <a href="?sort=public"
+            class="btn {% if sort_by == 'public' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill btn-sm px-3">공개
+            종목 수익률순</a>
+    </div>
+
+    <!-- Ranking Table -->
+    <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+        <div class="card-body p-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="bg-light">
+                        <tr>
+                            <th scope="col" class="py-3 ps-4 rounded-start">순위</th>
+                            <th scope="col" class="py-3">회사명</th>
+                            <th scope="col" class="py-3">대표자 (직급)</th>
+                            <th scope="col" class="py-3 text-end">총 자산</th>
+                            <th scope="col" class="py-3 text-end">총 수익률</th>
+                            <th scope="col" class="py-3 text-end">공개 종목 수익률</th>
+                            <th scope="col" class="py-3 text-center rounded-end">공개 종목 수</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ranker in ranking_data %}
+                        <tr {% if ranker.user==user %}class="table-primary fw-bold border-primary" {% endif %}>
+                            <td class="ps-4 fw-bold text-muted">
+                                {% if ranker.rank <= 3 %} <span
+                                    class="badge rounded-pill bg-warning text-dark border border-warning">
+                                    {{ ranker.rank }}위
+                                    </span>
+                                    {% else %}
+                                    {{ ranker.rank }}위
+                                    {% endif %}
+                            </td>
+                            <td>
+                                <div class="fw-bold text-dark">{{ ranker.organization.name }}</div>
+                            </td>
+                            <td>
+                                {{ ranker.user.last_name }}{{ ranker.user.first_name }}
+                                <span class="text-muted small">({{ ranker.user.position|default:"대표" }})</span>
+                            </td>
+                            <td class="text-end fw-bold text-dark">
+                                {{ ranker.total_asset|intcomma }}원
+                            </td>
+                            <td
+                                class="text-end fw-bold {% if ranker.total_yield > 0 %}text-danger{% elif ranker.total_yield < 0 %}text-primary{% endif %}">
+                                {{ ranker.total_yield }}%
+                            </td>
+                            <td
+                                class="text-end fw-bold {% if ranker.public_yield > 0 %}text-danger{% elif ranker.public_yield < 0 %}text-primary{% endif %}">
+                                {{ ranker.public_yield }}%
+                            </td>
+                            <td class="text-center text-muted">
+                                {{ ranker.stock_count }}개
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                랭킹 데이터가 없습니다. 포트폴리오를 공개해보세요!
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

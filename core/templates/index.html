@@ -1,6 +1,8 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<!-- Quill CSS (Must be inside block to render) -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <style>
     /* 화면 전체를 채우는 메인 컨테이너 */
     .main-container {
@@ -8,44 +10,60 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 40px;
-        background-color: #f8fafc; /* 부드러운 배경색 */
-        min-height: calc(100vh - 40px); /* 사이드바 높이에 맞춤 */
+        background-color: #f8fafc;
+        /* 부드러운 배경색 */
+        min-height: calc(100vh - 60px);
+        /* 상단 네비 높이 제외 */
+        width: 100%;
+        overflow-y: auto;
     }
 
-    /* 환영 카드 섹션 */
-    .welcome-card {
+    /* 환영 배너 섹션 (Hero) */
+    .welcome-banner {
         background: white;
-        padding: 60px;
-        border-radius: 24px;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
-        max-width: 600px;
         width: 100%;
+        padding: 40px 60px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 40px;
+        margin-bottom: 40px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .banner-content {
+        text-align: left;
     }
 
     .emoji-hand {
         font-size: 64px;
-        margin-bottom: 24px;
         display: inline-block;
         animation: wave-animation 2.5s infinite;
         transform-origin: 70% 70%;
+        flex-shrink: 0;
+    }
+
+    .logo-img {
+        max-height: 80px;
+        max-width: 150px;
+        object-fit: contain;
     }
 
     .welcome-title {
         font-size: 32px;
         font-weight: 800;
         color: #0f172a;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
         letter-spacing: -0.025em;
     }
 
     .welcome-desc {
         font-size: 17px;
         color: #475569;
-        line-height: 1.8;
+        line-height: 1.6;
         word-break: keep-all;
+        margin: 0;
     }
 
     .highlight {
@@ -53,27 +71,386 @@
         font-weight: 700;
     }
 
-    @keyframes wave-animation {
-        0% { transform: rotate( 0.0deg) }
-       10% { transform: rotate(14.0deg) }
-       20% { transform: rotate(-8.0deg) }
-       30% { transform: rotate(14.0deg) }
-       40% { transform: rotate(-4.0deg) }
-       50% { transform: rotate(10.0deg) }
-       60% { transform: rotate( 0.0deg) }
-      100% { transform: rotate( 0.0deg) }
+    /* 콘텐츠 카드 (My Principles) */
+    .content-card {
+        background: white;
+        padding: 40px;
+        border-radius: 24px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+        max-width: 800px;
+        width: 90%;
+        margin-bottom: 40px;
     }
+
+    @keyframes wave-animation {
+        0% {
+            transform: rotate(0.0deg)
+        }
+
+        10% {
+            transform: rotate(14.0deg)
+        }
+
+        20% {
+            transform: rotate(-8.0deg)
+        }
+
+        30% {
+            transform: rotate(14.0deg)
+        }
+
+        40% {
+            transform: rotate(-4.0deg)
+        }
+
+        50% {
+            transform: rotate(10.0deg)
+        }
+
+        60% {
+            transform: rotate(0.0deg)
+        }
+
+        /* Remove top margin from the first element in view mode */
+        #principle-view>*:first-child {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
 </style>
 
 <div class="main-container">
-    <div class="welcome-card">
+    <!-- Hero Banner -->
+    <div class="welcome-banner">
+        {% if user.organization.logo %}
+        <div class="d-flex align-items-center justify-content-center"
+            style="width: 100px; height: 100px; background: #fff; border-radius: 16px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+            <img src="{{ user.organization.logo.url }}" class="logo-img" alt="Company Logo">
+        </div>
+        {% else %}
         <div class="emoji-hand">👋</div>
-        <h1 class="welcome-title">반갑습니다, <span class="highlight">{{ user.username }}</span>님!</h1>
-        <p class="welcome-desc">
-            <strong>꼼망컴퍼니 CIS</strong>에 접속하셨습니다.<br>
-            좌측 사이드바에서 <span class="highlight">AI 직원</span>을 선택하여 대화를 시작하거나,<br>
-            전자결재 기능을 통해 업무를 승인해 주세요.
-        </p>
+        {% endif %}
+
+        <div class="banner-content">
+            <h1 class="welcome-title">반갑습니다, <span class="highlight">{{ user.nickname|default:user.username }}</span>님!
+            </h1>
+            <p class="welcome-desc">
+                <strong>{{ user.organization.name|default:"꼼망컴퍼니" }}</strong>에 접속하셨습니다.<br>
+                좌측 사이드바에서 <span class="highlight">AI 직원</span>을 선택하여 대화를 시작하거나,
+                전자결재 기능을 통해 업무를 승인해 주세요.
+            </p>
+        </div>
     </div>
+
+    <!-- Favorites Section -->
+    <div class="content-card mb-4" style="padding: 30px 40px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold m-0" style="color: #1e293b; font-size: 20px;">
+                ⭐ 즐겨찾기 <span style="font-size:14px; color:#94a3b8; font-weight:500;">(최대 5개)</span>
+            </h4>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="toggleReorderMode()"
+                    id="btn-reorder">
+                    순서 변경
+                </button>
+                <button class="btn btn-primary btn-sm rounded-pill px-3" data-bs-toggle="modal"
+                    data-bs-target="#addFavoriteModal" {% if favorites.count >= 5 %}disabled{% endif %}>
+                    + 추가
+                </button>
+            </div>
+        </div>
+
+        <div id="favorites-grid" class="d-flex gap-3 flex-wrap">
+            {% for fav in favorites %}
+            <div class="favorite-card position-relative" data-id="{{ fav.id }}"
+                onclick="if(!isReorderMode) location.href='{% url fav.url_name %}'">
+                <div class="fav-icon">{{ fav.icon }}</div>
+                <div class="fav-name">{{ fav.name }}</div>
+
+                <!-- Delete Badge (Hidden by default) -->
+                <a href="{% url 'delete_favorite' fav.id %}"
+                    class="btn-delete-fav position-absolute top-0 end-0 translate-middle badge rounded-pill bg-danger"
+                    style="display:none; text-decoration:none; z-index:10;"
+                    onclick="event.stopPropagation(); return confirm('삭제하시겠습니까?');">
+                    X
+                </a>
+            </div>
+            {% empty %}
+            <div class="text-muted w-100 py-3 text-center" style="border: 2px dashed #e2e8f0; border-radius: 12px;">
+                즐겨찾는 메뉴를 추가해보세요!
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Reorder Save Button (Hidden) -->
+        <div id="reorder-controls" class="mt-3 text-end" style="display:none;">
+            <button class="btn btn-success btn-sm rounded-pill px-4" onclick="saveOrder()">저장 완료</button>
+        </div>
+    </div>
+
+    <!-- Modal: Add Favorite -->
+    <div class="modal fade" id="addFavoriteModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">즐겨찾기 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form action="{% url 'add_favorite' %}" method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">메뉴 선택</label>
+                            <select name="url_name" class="form-select" onchange="autoFillFavorite(this)" required>
+                                <option value="" disabled selected>메뉴를 선택하세요</option>
+                                <optgroup label="투자">
+                                    <option value="investment_management" data-icon="📈" data-name="투자 관리">투자 관리
+                                    </option>
+                                    <option value="stock_management" data-icon="📋" data-name="종목 관리">종목 관리</option>
+                                    <option value="trade_notification_list" data-icon="📩" data-name="체결 알림">체결 알림
+                                    </option>
+                                </optgroup>
+                                <optgroup label="재무">
+                                    <option value="financial_management" data-icon="💰" data-name="재무 관리">재무 관리</option>
+                                    <option value="cash_operation" data-icon="💸" data-name="현금 입출금">현금 입출금</option>
+                                </optgroup>
+                                <optgroup label="조직/결재">
+                                    <option value="approval_list" data-icon="📑" data-name="전자결재함">전자결재함</option>
+                                    <option value="org_chart" data-icon="👥" data-name="조직도">조직도</option>
+                                    <option value="messenger" data-icon="💬" data-name="AI 메신저">AI 메신저</option>
+                                </optgroup>
+                                <optgroup label="기타">
+                                    <option value="account_management" data-icon="💳" data-name="계좌 관리">계좌 관리</option>
+                                    <option value="my_info" data-icon="👤" data-name="내 정보">내 정보</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">이름 (표시명)</label>
+                            <input type="text" name="name" id="fav-name-input" class="form-control" maxlength="10"
+                                required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">아이콘 (이모지)</label>
+                            <input type="text" name="icon" id="fav-icon-input" class="form-control"
+                                style="width: 60px; text-align:center;" maxlength="2" required>
+                        </div>
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary rounded-pill py-2 fw-bold">추가하기</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SortableJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        .favorite-card {
+            width: 100px;
+            height: 100px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .favorite-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e1;
+        }
+
+        .fav-icon {
+            font-size: 32px;
+            margin-bottom: 5px;
+        }
+
+        .fav-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            text-align: center;
+        }
+
+        /* Reorder Mode */
+        .reorder-mode .favorite-card {
+            background: #f1f5f9;
+            cursor: grab;
+            border-style: dashed;
+        }
+
+        .reorder-mode .favorite-card:active {
+            cursor: grabbing;
+        }
+    </style>
+    <script>
+        let isReorderMode = false;
+        let sortableInstance = null;
+
+        function autoFillFavorite(select) {
+            const option = select.options[select.selectedIndex];
+            document.getElementById('fav-name-input').value = option.getAttribute('data-name');
+            document.getElementById('fav-icon-input').value = option.getAttribute('data-icon');
+        }
+
+        function toggleReorderMode() {
+            const grid = document.getElementById('favorites-grid');
+            const btns = document.querySelectorAll('.btn-delete-fav');
+            const controls = document.getElementById('reorder-controls');
+            const reorderBtn = document.getElementById('btn-reorder');
+
+            isReorderMode = !isReorderMode;
+
+            if (isReorderMode) {
+                grid.classList.add('reorder-mode');
+                btns.forEach(b => b.style.display = 'block');
+                controls.style.display = 'block';
+                reorderBtn.style.display = 'none';
+
+                // Init Sortable
+                sortableInstance = new Sortable(grid, {
+                    animation: 150,
+                    ghostClass: 'bg-primary-subtle'
+                });
+            } else {
+                saveOrder(); // Auto save on toggle off? Or just cancel
+            }
+        }
+
+        function saveOrder() {
+            const grid = document.getElementById('favorites-grid');
+            const btns = document.querySelectorAll('.btn-delete-fav');
+            const controls = document.getElementById('reorder-controls');
+            const reorderBtn = document.getElementById('btn-reorder');
+
+            // Get IDs
+            const items = grid.querySelectorAll('.favorite-card');
+            const order = Array.from(items).map(item => item.getAttribute('data-id'));
+
+            // Send API
+            fetch('{% url "update_favorite_order" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}' // Ensure this template tag works or use cookie
+                },
+                body: JSON.stringify({ order: order })
+            }).then(() => {
+                // Reset UI
+                if (sortableInstance) sortableInstance.destroy();
+                grid.classList.remove('reorder-mode');
+                btns.forEach(b => b.style.display = 'none');
+                controls.style.display = 'none';
+                reorderBtn.style.display = 'inline-block';
+                isReorderMode = false;
+
+                // Reload to reflect proper order explicitly or just trust JS swap
+                // location.reload(); 
+            });
+        }
+    </script>
+
+    <!-- My Principles Section -->
+    <div class="content-card text-start">
+        <div class="d-flex justify-content-between align-items-center mb-0">
+            <h3 class="fw-bold m-0" style="color: #1e293b; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 28px;">📜</span> 나의 원칙
+            </h3>
+            <button id="btn-edit-principle" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold"
+                onclick="togglePrincipleEdit()">
+                수정
+            </button>
+        </div>
+
+        <!-- View Mode -->
+        <div id="principle-view" class="principle-content ql-editor" style="padding: 0; min-height: auto;">
+            {% if user.principles %}
+            {{ user.principles|safe }}
+            {% else %}
+            <div class="text-center py-5 text-muted">
+                <div style="font-size: 40px; margin-bottom: 10px; opacity: 0.5;">📝</div>
+                <p>아직 작성된 원칙이 없습니다.<br>나만의 업무 원칙이나 투자 원칙을 세우고 지켜나가세요!</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Edit Mode -->
+        <form id="principle-form" method="post" style="display:none;" onsubmit="savePrincipleContent()">
+            {% csrf_token %}
+            <!-- Hidden Input to store Quill HTML -->
+            <input type="hidden" name="principles" id="principles-input">
+
+            <!-- Quill Editor Container -->
+            <div class="mb-3">
+                <div id="quill-editor">
+                    {{ user.principles|safe }}
+                </div>
+            </div>
+
+            <div class="text-end mt-3">
+                <button type="submit" class="btn btn-primary rounded-pill px-4 py-2 fw-bold shadow-sm">
+                    저장 완료
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Quill JS -->
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <script>
+        var quill = null;
+
+        function initQuill() {
+            if (quill) return; // Already initialized
+
+            quill = new Quill('#quill-editor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        [{ 'size': ['small', false, 'large', 'huge'] }],  // custom dropdown
+                        ['bold', 'italic', 'underline', 'strike'],        // toggled buttons
+                        [{ 'color': [] }, { 'background': [] }],          // dropdown with defaults from theme
+                        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                        [{ 'align': [] }],
+                        ['clean']                                         // remove formatting button
+                    ]
+                }
+            });
+        }
+
+        function togglePrincipleEdit() {
+            const viewMode = document.getElementById('principle-view');
+            const editMode = document.getElementById('principle-form');
+            const btn = document.getElementById('btn-edit-principle');
+
+            if (editMode.style.display === 'none') {
+                // Switch to Edit
+                viewMode.style.display = 'none';
+                editMode.style.display = 'block';
+                btn.style.display = 'none';
+
+                // Initialize Quill when showing for the first time
+                initQuill();
+            } else {
+                // Switch to View
+                viewMode.style.display = 'block';
+                editMode.style.display = 'none';
+                btn.style.display = 'block';
+            }
+        }
+
+        function savePrincipleContent() {
+            if (quill) {
+                var html = quill.root.innerHTML;
+                document.getElementById('principles-input').value = html;
+            }
+        }
+    </script>
 </div>
 {% endblock %}

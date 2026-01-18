@@ -4,11 +4,12 @@ import json
 import yfinance as yf
 from itertools import groupby
 from operator import attrgetter
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, F
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages # [Fix] Import messages
 from django.core.paginator import Paginator
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -16,7 +17,8 @@ from django.views import View
 from datetime import datetime, time
 from django.http import JsonResponse, HttpResponse
 
-from .models import User, Organization, Department, DailySnapshot, Transaction, Stock, InterestStock, Agent, Message, Approval, InvestmentLog, Account, TradeNotification
+from .models import User, Organization, Department, DailySnapshot, Transaction, Stock, InterestStock, Agent, Message, Approval, InvestmentLog, Account, TradeNotification, UserFavorite, PortfolioDisclosure, Post, Follow
+from .forms import AgentForm, UserChangeForm, OrganizationForm
 from .services import TransactionService, FinancialService
 from .tasks import create_approval_draft, create_daily_snapshot
 from .utils import parse_mirae_sms, format_approval_content, get_agent_by_stock
@@ -68,28 +70,196 @@ def get_sidebar_agents(user):
 @login_required
 def index(request):
     agents = get_sidebar_agents(request.user)
-    return render(request, 'index.html', {'agents': agents})
+    if request.method == 'POST':
+        principles = request.POST.get('principles', '')
+        request.user.principles = principles
+        request.user.save()
+        messages.success(request, "나의 원칙이 저장되었습니다.")
+        return redirect('index')
+
+    today = timezone.now().date()
+    
+    # [Favorites Logic]
+    favorites = UserFavorite.objects.filter(user=request.user)
+    
+    return render(request, 'index.html', {
+        'agents': agents,
+        'today': today,
+        'favorites': favorites,
+        'active_main_menu': 'home',
+        'active_sub_menu': 'home'
+    })
+
+@login_required
+def org_chart(request):
+    # Retrieve organization and agents
+    organization = request.user.organization
+    agents = Agent.objects.filter(organization=organization)
+    
+    # ... logic ...
+    
+    return render(request, 'org_chart.html', {
+        'organization': organization,
+        'departments': [], # If needed
+        'agents': agents,
+        'active_main_menu': 'organization', # Changed from 'home'
+        'active_sub_menu': 'org'
+    })
+
+# ==========================================
+# [New] Organization Management (Agent CRUD)
+# ==========================================
+@login_required
+def agent_management(request):
+    agents = Agent.objects.filter(organization=request.user.organization).select_related('department_obj')
+    return render(request, 'agent_management.html', {
+        'agents': agents,
+        'active_main_menu': 'organization',
+        'active_sub_menu': 'agents'
+    })
+
+@login_required
+def agent_create(request):
+    if request.method == 'POST':
+        form = AgentForm(request.POST, request.FILES)
+        if form.is_valid():
+            agent = form.save(commit=False)
+            agent.organization = request.user.organization
+            agent.save()
+            messages.success(request, f"{agent.name} 직원이 등록되었습니다.")
+            return redirect('agent_management')
+    else:
+        form = AgentForm(initial={'organization': request.user.organization})
+    
+    return render(request, 'agent_form.html', {
+        'form': form,
+        'title': '직원 등록',
+        'active_main_menu': 'organization',
+        'active_sub_menu': 'agents'
+    })
+
+@login_required
+def agent_edit(request, pk):
+    agent = get_object_or_404(Agent, pk=pk, organization=request.user.organization)
+    if request.method == 'POST':
+        form = AgentForm(request.POST, request.FILES, instance=agent)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"{agent.name} 정보가 수정되었습니다.")
+            return redirect('agent_management')
+    else:
+        form = AgentForm(instance=agent)
+        
+    return render(request, 'agent_form.html', {
+        'form': form,
+        'title': '직원 정보 수정',
+        'agent': agent,
+        'active_main_menu': 'organization',
+        'active_sub_menu': 'agents'
+    })
+
+@login_required
+def agent_delete(request, pk):
+    agent = get_object_or_404(Agent, pk=pk, organization=request.user.organization)
+    if request.method == 'POST':
+        agent.delete()
+        messages.success(request, f"{agent.name} 직원이 삭제되었습니다.")
+        return redirect('agent_management')
+    return redirect('agent_management')
+
+
+# [New] Favorites APIs
+@login_required
+def add_favorite(request):
+    if request.method == 'POST':
+        name = request.POST.get('name')
+        url_name = request.POST.get('url_name')
+        icon = request.POST.get('icon', '📌')
+        
+        # Limit check
+        if UserFavorite.objects.filter(user=request.user).count() >= 5:
+            messages.error(request, "즐겨찾기는 최대 5개까지만 등록 가능합니다.")
+        else:
+            UserFavorite.objects.create(user=request.user, name=name, url_name=url_name, icon=icon, display_order=999)
+            messages.success(request, "즐겨찾기가 추가되었습니다.")
+            
+    return redirect('index')
+
+@login_required
+def delete_favorite(request, pk):
+    fav = get_object_or_404(UserFavorite, pk=pk, user=request.user)
+    fav.delete()
+    messages.success(request, "즐겨찾기가 삭제되었습니다.")
+    return redirect('index')
+
+@csrf_exempt
+@login_required
+def update_favorite_order(request):
+    """
+    AJAX Endpoint to reorder favorites.
+    Expects JSON: { "order": [id1, id2, id3, ...] }
+    """
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            order_list = data.get('order', [])
+            
+            for index, fav_id in enumerate(order_list):
+                UserFavorite.objects.filter(id=fav_id, user=request.user).update(display_order=index)
+                
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    return JsonResponse({'status': 'invalid method'}, status=405)
+
+# ==========================================
+# [New] Master Dashboard (Superuser Only)
+# ==========================================
+@user_passes_test(lambda u: u.is_superuser)
+def master_user_list(request):
+    users = User.objects.all().select_related('organization').order_by('-date_joined')
+    return render(request, 'master/user_list.html', {
+        'users': users,
+        'active_main_menu': 'master', # For highlighting if we add master menu later
+    })
+
+@user_passes_test(lambda u: u.is_superuser)
+def master_user_toggle_status(request, pk):
+    user_obj = get_object_or_404(User, pk=pk)
+    if request.method == 'POST':
+        # Prevent disabling self
+        if user_obj == request.user:
+            messages.error(request, "자신의 계정은 비활성화할 수 없습니다.")
+        else:
+            user_obj.is_active = not user_obj.is_active
+            user_obj.save()
+            status_msg = "활성화" if user_obj.is_active else "비활성화(정지)"
+            messages.success(request, f"{user_obj.username} 계정이 {status_msg} 처리되었습니다.")
+            
+    return redirect('master_user_list')
+
 
 @login_required
 def messenger(request, agent_id=None):
     user = request.user
     agents = get_sidebar_agents(user)
     
-    if not agent_id and agents.exists():
-        return redirect('messenger', agent_id=agents.first().id)
+    # [Mod] Remove auto-redirect. If no agent_id, show list.
+    # if not agent_id and agents.exists():
+    #     return redirect('messenger', agent_id=agents.first().id)
         
     active_agent = get_object_or_404(Agent, id=agent_id) if agent_id else None
     
-    messages = []
+    messages_list = []
     if active_agent:
-        messages = Message.objects.filter(
+        messages_list = Message.objects.filter(
             agent=active_agent, 
             user=user
         ).order_by('created_at')
 
     initial_greeting = "안녕하세요."
     if active_agent:
-        hour = datetime.datetime.now().hour
+        hour = datetime.now().hour
         time_text = "좋은 아침입니다" if 5 <= hour < 11 else "점심 맛있게 드셨습니까" if 11 <= hour < 14 else "좋은 저녁입니다"
         dept_name = active_agent.department_obj.name if active_agent.department_obj else "소속미정"
         initial_greeting = f"{time_text}, 사장님. {dept_name} {active_agent.name} {active_agent.position}입니다. 무엇을 도와드릴까요?"
@@ -112,8 +282,10 @@ def messenger(request, agent_id=None):
     return render(request, 'messenger.html', {
         'agents': agents, 
         'active_agent': active_agent,
-        'messages': messages,
-        'initial_greeting': initial_greeting
+        'messages': messages_list,
+        'initial_greeting': initial_greeting,
+        'active_main_menu': 'home',
+        'active_sub_menu': 'messenger'
     })
 
 @login_required
@@ -171,6 +343,8 @@ def investment_management(request):
             cost_removed = qty_sold * p['avg_price']
             p['total_amount'] -= cost_removed
 
+    # [Removed nested get_stock_detail]
+            
     # Convert to list and filter zero holdings
     portfolio_list = []
     for sid, p in portfolio_map.items():
@@ -327,7 +501,10 @@ def investment_management(request):
         'investment_logs': investment_logs,
         'summary': summary,
         'all_stocks': Stock.objects.all().order_by('display_order', 'name'),
-        'accounts': Account.objects.filter(organization=user.organization)
+        'accounts': Account.objects.filter(organization=user.organization),
+        'active_main_menu': 'portfolio',
+        'active_sub_menu': 'holdings',
+        'notifications': TradeNotification.objects.filter(organization=user.organization).order_by('-created_at')[:5]
     })
 
 @login_required
@@ -377,7 +554,9 @@ def financial_management(request):
         'agents': agents,
         'latest_snapshot': latest_snapshot,
         'transactions': page_obj,
-        'selected_date': selected_date_str
+        'selected_date': selected_date_str,
+        'active_main_menu': 'portfolio',
+        'active_sub_menu': 'finance'
     })
 
 @login_required
@@ -389,8 +568,10 @@ def cash_operation(request):
         
         if op_type == 'deposit':
              TransactionService.deposit(request.user.organization, amount, description)
+             messages.success(request, "입금 완료되었습니다.") # [New]
         elif op_type == 'withdraw':
              TransactionService.withdraw(request.user.organization, amount, description)
+             messages.success(request, "출금 완료되었습니다.") # [New]
              
         # Update snapshot immediately logic can be added here if needed
         create_daily_snapshot(request.user.organization.id)
@@ -431,16 +612,49 @@ def create_self_approval(request):
             temp_stock_code=temp_stock_code,
             temp_date=timezone.now().date()
         )
+
+        messages.success(request, "기안이 작성되었습니다.") # [New]
         return redirect('approval_list')
         
     stocks = Stock.objects.all().order_by('name')
-    return render(request, 'create_approval.html', {'stocks': stocks})
+    return render(request, 'create_approval.html', {
+        'stocks': stocks,
+        'active_main_menu': 'approval', # [Fix] Sidebar
+        'active_sub_menu': 'request'
+    })
 
 @login_required
 def approval_list(request):
     agents = get_sidebar_agents(request.user)
-    approvals = Approval.objects.filter(organization=request.user.organization).order_by('-created_at')
-    return render(request, 'approval_list.html', {'agents': agents, 'approvals': approvals})
+    
+    # [NEW] Search & Filter
+    search_query = request.GET.get('q', '')
+    status_filter = request.GET.get('status', '') # all, pending, approved, rejected
+    active_sub = 'all'
+    
+    approvals = Approval.objects.filter(organization=request.user.organization)
+    
+    if status_filter:
+        approvals = approvals.filter(status=status_filter)
+        active_sub = status_filter
+        
+    if search_query:
+        # Title or Content or Stock Name
+        approvals = approvals.filter(
+            Q(title__icontains=search_query) | 
+            Q(content__icontains=search_query) |
+            Q(temp_stock_name__icontains=search_query)
+        )
+        
+    approvals = approvals.order_by('-updated_at') # Latest update first
+    
+    return render(request, 'approval_list.html', {
+        'agents': agents, 
+        'approvals': approvals,
+        'active_main_menu': 'approval',
+        'active_sub_menu': active_sub,
+        'search_query': search_query
+    })
 
 @login_required
 def approval_detail(request, pk):
@@ -454,7 +668,10 @@ def approval_detail(request, pk):
         if action == 'save':
             approval.title = request.POST.get('title')
             approval.content = request.POST.get('content')
+            approval.title = request.POST.get('title')
+            approval.content = request.POST.get('content')
             approval.save()
+            messages.success(request, "저장되었습니다.") # [New]
             return redirect('approval_detail', pk=pk)
             
         if action == 'approve':
@@ -499,7 +716,8 @@ def approval_detail(request, pk):
                     price=price,
                     description=f"승인된 매수: {approval.title}",
                     account=approval.temp_account,
-                    timestamp=log_date # [New] Use Approval Date
+                    timestamp=log_date, # [New] Use Approval Date
+                    approval=approval # [New] Link for Cascade Delete
                 )
             elif approval.report_type == 'sell':
                 # Realized Profit Calculation
@@ -525,20 +743,27 @@ def approval_detail(request, pk):
                     quantity=approval.temp_quantity,
                     price=price,
                     profit=profit,
-                    description=f"승인된 매도: {approval.title}"
+                    description=f"승인된 매도: {approval.title}",
+                    approval=approval # [New] Link
                 )
             
             create_daily_snapshot(request.user.organization.id)
             approval.status = 'approved'
             approval.save()
+            messages.success(request, "승인 완료되었습니다.") # [New]
             return redirect('approval_list')
             
         elif action == 'reject':
             approval.status = 'rejected'
             approval.save()
+            messages.success(request, "반려되었습니다.") # [New]
             return redirect('approval_list')
 
-    return render(request, 'approval_detail.html', {'agents': agents, 'approval': approval})
+    return render(request, 'approval_detail.html', {
+        'agents': agents, 
+        'approval': approval,
+        'active_main_menu': 'approval' # [Fix] Maintain Sidebar
+    })
 
 @login_required
 def org_chart(request):
@@ -591,23 +816,45 @@ def org_chart(request):
         stock_list_str = ""
         if stocks:
             names = [s.name for s in stocks]
-            if len(names) > 3:
-                stock_list_str = f"<div class='node-stock'>📈 {', '.join(names[:2])} 외 {len(names)-2}종목</div>"
-            else:
-                stock_list_str = f"<div class='node-stock'>📈 {', '.join(names)}</div>"
+            display_list = []
+            for i, name in enumerate(names, 1):
+                display_list.append(f"{i}. {name}")
+            
+            list_style = "text-align:left; font-size:11px; margin-top:8px; color:#475569; line-height:1.4;"
+            
+            visible_html = "<br>".join(display_list)
+            stock_list_str = f"<div class='node-stock' style='{list_style}'>{visible_html}</div>"
 
-        # Link to Admin (User Request: "connect to admin page")
+        # Admin Link
         admin_link = f"<a href='/admin/core/agent/{agent.id}/change/' target='_blank' style='text-decoration:none; position:absolute; top:5px; right:5px; font-size:12px;'>⚙️</a>"
 
+        # HTML Construction
+        # Line 1: Name + Position (Large & Bold)
+        # Line 2: Role (Small & Gray)
         rows.append([
-            {'v': agent_id, 'f': f'<div class="node-card agent-card" style="position:relative;">{admin_link}<div class="img-circle">{img_html}</div><div class="node-name">{agent.name}</div><div class="node-role">{agent.position} / {agent.role}</div>{stock_list_str}</div>'},
+            {'v': agent_id, 'f': f'''<div class="node-card agent-card" style="position:relative;">
+                {admin_link}
+                <div class="img-circle">{img_html}</div>
+                <div class="node-name">{agent.name} {agent.position}</div>
+                <div class="node-role" style="font-size:11px; font-weight:normal; color:#64748b; margin-top:-2px;">{agent.role}</div>
+                {stock_list_str}
+            </div>'''},
             parent_id,
             agent.role
         ])
 
+    # Prepare raw data for D3.js
+    departments = Department.objects.filter(organization=org)
+    all_agents = Agent.objects.filter(organization=org).select_related('department_obj')
+    ceo = User.objects.filter(organization=org, role='ceo').first()
+
     return render(request, 'org_chart.html', {
-        'agents': agents,
-        'chart_data': json.dumps(rows)
+        'agents': agents, # For Sidebar
+        'departments': departments,
+        'all_agents': all_agents,
+        'ceo': ceo,
+        'active_main_menu': 'approval' if request.GET.get('action') == 'request' else 'home',
+        'active_sub_menu': 'request' if request.GET.get('action') == 'request' else 'org'
     })
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -752,8 +999,77 @@ def stock_management(request):
         'agents': agents,
         'stocks': stocks,
         'current_sort': sort_by,
-        'current_direction': direction
+        'current_direction': direction,
+        'active_main_menu': 'portfolio',
+        'active_sub_menu': 'stocks'
     })
+
+@login_required
+@csrf_exempt
+def delete_approval(request, pk):
+    """
+    기안문 삭제 (안전장치 포함)
+    기안문 삭제 시 연결된 Transaction도 Cascade로 삭제됨.
+    """
+    if request.method != 'POST':
+        return HttpResponse("POST method required", status=405)
+        
+    approval = get_object_or_404(Approval, pk=pk)
+    
+    # Permission Check
+    if not (request.user == approval.drafter or request.user.is_superuser):
+        return HttpResponse("권한이 없습니다.", status=403)
+        
+    try:
+        with transaction.atomic():
+            # Cascade Delete
+            # approval.delete() will delete related Transaction, ApprovalLine, InvestmentLog (if OneToOne is Cascade? Wait)
+            # InvestmentLog is OneToOne but specific deletion might be safer to be explicit or check model `on_delete`.
+            # Check model: investment_log = OneToOneField(..., on_delete=SET_NULL) -> in Approval.
+            # So deleting Approval sets InvLog to Null.
+            # BUT User said: "Delete ALL related transaction history".
+            
+            # 1. Delete Linked Transaction (Handled by FK on Transaction I just added with CASCADE)
+            
+            # 2. Delete Investment Log (if exists)
+            if approval.investment_log:
+                approval.investment_log.delete()
+                
+            # 3. Delete Approval
+            approval.delete()
+            
+            # Recalculate Snapshot immediately to reflect changes
+            create_daily_snapshot(request.user.organization.id)
+
+            messages.success(request, "기안문이 삭제되었습니다.") # [New]
+            
+        return redirect('approval_list')
+        
+    except Exception as e:
+        return HttpResponse(f"삭제 중 오류 발생: {str(e)}", status=500)
+
+@login_required
+@csrf_exempt
+def delete_chat_room(request, pk):
+    """
+    채팅방(일반기안) 목록에서 즉시 삭제
+    """
+    if request.method != 'POST':
+        return HttpResponse("POST method required", status=405)
+        
+    approval = get_object_or_404(Approval, pk=pk)
+    
+    # Permission Check
+    if not (request.user == approval.drafter or request.user.is_superuser):
+        return HttpResponse("권한이 없습니다.", status=403)
+    
+    try:
+        approval.delete()
+        create_daily_snapshot(request.user.organization.id)
+        messages.success(request, "채팅방에서 나갔습니다.") # [New]
+        return redirect('approval_list')
+    except Exception as e:
+        return HttpResponse(f"삭제 중 오류 발생: {str(e)}", status=500)
 
 @login_required
 @csrf_exempt
@@ -908,95 +1224,29 @@ def delete_interest_stock(request, stock_id):
             
     return redirect('stock_management')
 
-@login_required
+# [Old get_stock_detail removed]
+
 def get_stock_detail(request):
     """
-    AJAX view to get detailed stock info and candle data
+    Ajax로 종목 상세 정보 반환 (API)
+    Refactored to use centralized update_stock utils function.
     """
     stock_id = request.GET.get('stock_id')
     try:
         stock = Stock.objects.get(id=stock_id)
         
-        # Determine ticker
-        ticker_symbol = stock.code
-        if stock.code.isdigit() and len(stock.code) == 6:
-            ticker_symbol = f"{stock.code}.KS"
-            
-        ticker = yf.Ticker(ticker_symbol)
+        # Trigger centralized update (Optimized: 1mo inc)
+        from .utils import update_stock
+        success = update_stock(stock)
         
-        # 1. Fetch Data
-        info = ticker.info
-        fast_info = ticker.fast_info
+        if not success:
+            print(f"Update failed for {stock.name}, serving cached data.")
         
-        # Update Country if missing or invalid
-        if not stock.country or stock.country in COUNTRY_MAP: # If it was stored as English before
-             stock.country = identify_stock_country(ticker_symbol, info)
-             stock.save()
-
-        # Prices & Market Cap
-        stock.current_price = fast_info.last_price
+        # Refresh from DB after update
+        stock.refresh_from_db()
         
-        mkt_cap = fast_info.market_cap
-        if not mkt_cap:
-            mkt_cap = info.get('marketCap')
-        
-        # [UPDATE] Use Naver for Meta Data (Domestic & World)
-        # Prioritize Naver description
-        naver_data = get_naver_stock_extra_info(stock.code, info.get('exchange', ''))
-        if naver_data.get('market_cap'):
-            mkt_cap = naver_data['market_cap']
-        
-        # Determine description priority: Naver first, then yfinance
-        if naver_data.get('description'):
-            stock.description = naver_data['description']
-        else:
-            stock.description = "" # Reset to allow yfinance fallback later
-        
-        if stock.is_korean:
-            # [Fix] Update name as well if changed on Naver
-            naver_name = get_naver_stock_name(stock.code)
-            if naver_name:
-                stock.name = naver_name
-        
-        stock.market_cap = mkt_cap
-        
-        stock.per = info.get('trailingPE')
-        stock.pbr = info.get('priceToBook')
-        
-        # 52w High/Low (Try fast_info first)
-        h52 = fast_info.year_high
-        l52 = fast_info.year_low
-        
-        # Fallback to info if fast_info is None/0
-        if not h52: h52 = info.get('fiftyTwoWeekHigh')
-        if not l52: l52 = info.get('fiftyTwoWeekLow')
-        
-        stock.high_52w = h52
-        stock.low_52w = l52
-
-        # [UPDATE] Name Correction for Korean Stocks (Naver)
-        if stock.is_korean:
-            kor_name = get_naver_stock_name(stock.code)
-            if kor_name and kor_name != stock.name:
-                stock.name = kor_name
-
-        # [Fallback] If Naver description is missing, use yfinance + translation
-        # [REMOVED] User requested to remove yfinance description fallback
-        # if not stock.description:
-        #     desc = info.get('longBusinessSummary') or info.get('description', '') ...
-        
-        stock.save()
-        
-        # Candle Data (3 Years, Weekly)
-        hist = ticker.history(period="3y", interval="1wk")
-        candles = []
-        for date, row in hist.iterrows():
-            candles.append({
-                'x': date.strftime('%Y-%m-%d'),
-                'y': [row['Open'], row['High'], row['Low'], row['Close']]
-            })
-        stock.candle_data = candles
-        stock.save()
+        # Ensure candle_data is list
+        candles = stock.candle_data if isinstance(stock.candle_data, list) else []
         
         return JsonResponse({
             'success': True,
@@ -1013,136 +1263,6 @@ def get_stock_detail(request):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
-
-def get_naver_stock_name(code):
-    """
-    Fetch Korean stock name from Naver Finance
-    """
-    try:
-        import requests
-        from bs4 import BeautifulSoup
-        
-        url = f"https://finance.naver.com/item/main.naver?code={code}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=3)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Naver Finance structure: .wrap_company h2 a
-        name_tag = soup.select_one('.wrap_company h2 a')
-        if name_tag:
-            return name_tag.text.strip()
-            
-    except Exception as e:
-        print(f"Error fetching Naver name for {code}: {e}")
-    
-    return None
-
-def _scrape_naver_summary(url, timeout=5):
-    """
-    Helper to scrape summary from Naver Stock Details page (Domestic & World)
-    Tries DOM selector first, then __NEXT_DATA__ JSON
-    """
-    try:
-        import requests
-        from bs4 import BeautifulSoup
-        import json
-        
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        res = requests.get(url, headers=headers, timeout=timeout)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # 1. Selector approach
-        desc_tag = soup.select_one('div[class*="SummaryInfo_summary-text"]')
-        if desc_tag:
-            return desc_tag.get_text().replace('더보기', '').strip()
-            
-        # 2. JSON State approach (for ETFs/World sometimes)
-        script_tag = soup.select_one('#__NEXT_DATA__')
-        if script_tag:
-            try:
-                js_data = json.loads(script_tag.string)
-                # Try common paths in Apollo State
-                apollo_state = js_data.get('props', {}).get('pageProps', {}).get('__APOLLO_STATE__', {})
-                for key, val in apollo_state.items():
-                    if 'summary' in val:
-                         return val['summary'].replace('더보기', '').strip()
-            except: pass
-            
-    except Exception as e:
-        print(f"Scrape summary failed for {url}: {e}")
-        
-    return None
-
-def get_naver_stock_extra_info(code, exchange=''):
-    """
-    Scrape Market Cap and Description from Naver Finance (Domestic & World)
-    """
-    data = {'market_cap': None, 'description': None}
-    try:
-        import requests
-        from bs4 import BeautifulSoup
-        import re
-        
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        
-        if code.isdigit() and len(code) == 6:
-            # --- Domestic Stock ---
-            # 1. Market Cap (main page)
-            url_main = f"https://finance.naver.com/item/main.naver?code={code}"
-            res_main = requests.get(url_main, headers=headers, timeout=5)
-            soup_main = BeautifulSoup(res_main.text, 'html.parser')
-            
-            mkt_sum_tag = soup_main.select_one('#_market_sum')
-            if mkt_sum_tag:
-                full_text = mkt_sum_tag.parent.get_text().replace(',', '').replace('\n', '').strip()
-                total_eok = 0
-                jo_match = re.search(r'(\d+)\s*조', full_text)
-                eok_match = re.search(r'(\d+)\s*억원', full_text)
-                if jo_match: total_eok += int(jo_match.group(1)) * 10000
-                if eok_match: total_eok += int(eok_match.group(1))
-                if total_eok > 0: data['market_cap'] = total_eok * 100000000
-
-            # 2. Description
-            url_desc = f"https://stock.naver.com/domestic/stock/{code}/price"
-            desc = _scrape_naver_summary(url_desc)
-            if desc:
-                data['description'] = desc
-
-            # Fallback to FnGuide (Only for domestic)
-            if not data['description']:
-                try:
-                    fnguide_url = f"https://comp.fnguide.com/SVO2/ASP/SVD_Main.asp?pGB=1&gicode=A{code}"
-                    res_fn = requests.get(fnguide_url, headers=headers, timeout=5)
-                    soup_fn = BeautifulSoup(res_fn.text, 'html.parser')
-                    biz_summary = soup_fn.select_one('#bizSummaryContent')
-                    if biz_summary:
-                        parts = biz_summary.find_all('li')
-                        data['description'] = "\n".join([p.get_text().strip() for p in parts])
-                except Exception:
-                    pass
-
-        else:
-            # --- World Stock ---
-            suffix = ""
-            if exchange == 'NYQ': suffix = ".K"
-            elif exchange == 'NMS': suffix = ".O"
-            elif exchange == 'ASE': suffix = ".A"
-            
-            # Naver World Stock description
-            candidates = [f"{code}{suffix}", code]
-            if not suffix: candidates = [f"{code}.K", f"{code}.O", code]
-            
-            for ticker in candidates:
-                url_desc = f"https://stock.naver.com/worldstock/stock/{ticker}/price"
-                desc = _scrape_naver_summary(url_desc)
-                if desc:
-                    data['description'] = desc
-                    break
-                 
-    except Exception as e:
-        print(f"Error scraping Naver extra info for {code}: {e}")
-        
-    return data
 
 @login_required
 def search_stock_api(request):
@@ -1247,7 +1367,9 @@ def account_management(request):
 
     return render(request, 'account_management.html', {
         'agents': agents, 
-        'accounts': accounts
+        'accounts': accounts,
+        'active_main_menu': 'portfolio',
+        'active_sub_menu': 'account'
     })
 
 @login_required
@@ -1284,7 +1406,9 @@ def trade_notification_list(request):
         'agents': agents,
         'notifications': notifications,
         'current_sort': sort_by,
-        'current_direction': direction
+        'current_direction': direction,
+        'active_main_menu': 'portfolio',
+        'active_sub_menu': 'noti'
     })
 
 @login_required
@@ -1307,6 +1431,7 @@ def update_all_stocks_api(request):
         if stock_id:
             stock = Stock.objects.get(id=stock_id)
             if utils.update_stock(stock):
+                messages.success(request, f'{stock.name} 업데이트 완료.') # [New]
                 return JsonResponse({'status': 'success', 'message': f'{stock.name} updated.'})
             else:
                 return JsonResponse({'status': 'error', 'message': f'Failed to update {stock.name}.'})
@@ -1318,7 +1443,419 @@ def update_all_stocks_api(request):
                 if utils.update_stock(stock):
                     count += 1
             
+            messages.success(request, f'전체 {count}개 종목 평가금액 업데이트 완료.') # [New]
             return JsonResponse({'status': 'success', 'message': f'{count} stocks updated.'})
             
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+# ==========================================
+# [New] My Info (User & Organization & Disclosure)
+# ==========================================
+@login_required
+def my_info(request):
+    user = request.user
+    organization = user.organization
+
+    if request.method == 'POST':
+        # 1. Update User/Org Info
+        if 'update_info' in request.POST:
+            user_form = UserChangeForm(request.POST, instance=user)
+            org_form = OrganizationForm(request.POST, request.FILES, instance=organization)
+            
+            if user_form.is_valid() and org_form.is_valid():
+                user_form.save()
+                org_form.save()
+                messages.success(request, "정보가 수정되었습니다.")
+                return redirect('my_info')
+        
+        # 2. Update Password
+        elif 'update_password' in request.POST:
+            return redirect('admin:password_change')
+
+        # 3. Update Portfolio Disclosure
+        elif 'update_disclosure' in request.POST:
+            public_stock_ids = request.POST.getlist('public_stocks')
+            my_interest_stocks = InterestStock.objects.filter(user=user)
+            
+            for interest in my_interest_stocks:
+                stock = interest.stock
+                is_public = str(stock.id) in public_stock_ids
+                PortfolioDisclosure.objects.update_or_create(
+                    user=user, 
+                    stock=stock, 
+                    defaults={'is_public': is_public}
+                )
+            messages.success(request, "포트폴리오 공개 설정이 저장되었습니다.")
+            return redirect('my_info')
+
+    # Init Forms
+    user_form = UserChangeForm(instance=user)
+    org_form = OrganizationForm(instance=organization)
+
+    # Prepare Stock List
+    my_stocks = InterestStock.objects.filter(user=user).select_related('stock')
+    
+    stock_disclosure_list = []
+    for item in my_stocks:
+        disclosure = PortfolioDisclosure.objects.filter(user=user, stock=item.stock).first()
+        is_public = disclosure.is_public if disclosure else True
+        stock_disclosure_list.append({
+            'stock': item.stock,
+            'is_public': is_public
+        })
+
+    # [New] Social Stats
+    followers_count = Follow.objects.filter(following=user).count()
+    following_count = Follow.objects.filter(follower=user).count()
+    following_list = Follow.objects.filter(follower=user).select_related('following')
+
+    return render(request, 'my_info.html', {
+        'user': user,
+        'user_form': user_form,
+        'org_form': org_form,
+        'stock_disclosures': stock_disclosure_list,
+        'followers_count': followers_count,
+        'following_count': following_count,
+        'following_list': following_list, # For management modal
+        'active_main_menu': 'my_info',
+    })
+
+# ==========================================
+# [New] Community (Board)
+# ==========================================
+@login_required
+def post_list(request):
+    category = request.GET.get('category', 'all')
+    search_query = request.GET.get('q', '')
+    
+    posts = Post.objects.all().select_related('author', 'organization').order_by('-created_at')
+    
+    if category != 'all':
+        posts = posts.filter(category=category)
+        
+    if search_query:
+        posts = posts.filter(Q(title__icontains=search_query) | Q(content__icontains=search_query))
+
+    paginator = Paginator(posts, 15)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    return render(request, 'community/post_list.html', {
+        'page_obj': page_obj,
+        'category': category,
+        'search_query': search_query,
+        'active_main_menu': 'community',
+    })
+
+@login_required
+def post_detail(request, pk):
+    post = get_object_or_404(Post, pk=pk)
+    
+    # Increment View Count
+    # Use F() expression to avoid race conditions
+    Post.objects.filter(pk=pk).update(views=F('views') + 1)
+    post.refresh_from_db()
+    
+    # Check if I follow the author
+    is_following = False
+    if request.user.is_authenticated and request.user != post.author:
+        is_following = Follow.objects.filter(follower=request.user, following=post.author).exists()
+        
+    return render(request, 'community/post_detail.html', {
+        'post': post,
+        'is_following': is_following,
+        'active_main_menu': 'community',
+    })
+
+@login_required
+def post_create(request):
+    if request.method == 'POST':
+        category = request.POST.get('category')
+        title = request.POST.get('title')
+        content = request.POST.get('content')
+        
+        if category and title and content:
+            Post.objects.create(
+                author=request.user,
+                organization=request.user.organization,
+                category=category,
+                title=title,
+                content=content
+            )
+            messages.success(request, "게시글이 등록되었습니다.")
+            return redirect('post_list')
+        else:
+            messages.error(request, "모든 필드를 입력해주세요.")
+            
+    return render(request, 'community/post_form.html', {
+        'title': '새 게시글 작성',
+        'active_main_menu': 'community',
+    })
+
+@login_required
+def post_edit(request, pk):
+    post = get_object_or_404(Post, pk=pk)
+    
+    # Permission Check
+    if post.author != request.user:
+        messages.error(request, "수정 권한이 없습니다.")
+        return redirect('post_detail', pk=pk)
+        
+    if request.method == 'POST':
+        category = request.POST.get('category')
+        title = request.POST.get('title')
+        content = request.POST.get('content')
+        
+        post.category = category
+        post.title = title
+        post.content = content
+        post.save()
+        
+        messages.success(request, "게시글이 수정되었습니다.")
+        return redirect('post_detail', pk=pk)
+        
+    return render(request, 'community/post_form.html', {
+        'title': '게시글 수정',
+        'post': post,
+        'active_main_menu': 'community',
+    })
+
+@login_required
+def post_delete(request, pk):
+    post = get_object_or_404(Post, pk=pk)
+    if post.author == request.user or request.user.is_superuser:
+        post.delete()
+        messages.success(request, "게시글이 삭제되었습니다.")
+    else:
+        messages.error(request, "삭제 권한이 없습니다.")
+        
+    return redirect('post_list')
+
+
+# ==========================================
+# [New] Portfolio Ranking (SaaS)
+# ==========================================
+@login_required
+def portfolio_ranking(request):
+    user = request.user
+    
+    # 1. Access Check: Must have at least 1 public stock
+    my_public_count = PortfolioDisclosure.objects.filter(user=user, is_public=True).count()
+    if my_public_count == 0:
+        messages.warning(request, "랭킹을 보려면 내 포트폴리오를 최소 1개 이상 공개해야 합니다.")
+        return redirect('my_info')
+        
+    # 2. Calculate Ranking Data
+    # Target: Users who have at least 1 public stock
+    # Logic:
+    # - Iterate candidates
+    # - Calculate Total Asset (from InvestmentLog or InterestStock 'amount' * current price?)
+    #   * Note: InvestmentLog is historical. InterestStock is current holdings but doesn't track bought price well for yield.
+    #   * Better: Use `InvestmentLog` aggregation for Total Buy/Sell -> Realized PnL? 
+    #   * OR: Just sum up `account.balance` + `stock value`.
+    #   * For simplicity & MVP: 
+    #     - Total Asset = Organization.cash_balance + Sum(InterestStock.amount * Stock.current_price)
+    #     - Total Yield = (Total Asset - Initial Capital) / Initial Capital * 100? (Hard to track initial)
+    #     - Alternative Yield: Sum(InterestStock PnL) / Sum(Buy Cost)
+    
+    # [Refined Logic utilizing InvestmentLog for accuracy]
+    candidates = User.objects.filter(role='ceo').select_related('organization')
+    ranking_data = []
+    
+    for candidate in candidates:
+        # 1. Check Participation
+        public_disclosures = PortfolioDisclosure.objects.filter(user=candidate, is_public=True).select_related('stock')
+        if not public_disclosures.exists():
+            continue
+            
+        public_stock_ids = [pd.stock.id for pd in public_disclosures]
+        
+        # 2. Calculate Portfolio Stats from InvestmentLog (Actual Ledger)
+        logs = InvestmentLog.objects.filter(user=candidate, action__in=['buy', 'sell']).select_related('stock')
+        
+        # Group by stock to calculate weighted average yield
+        stock_stats = {} # { stock_id: { 'total_qty': 0, 'total_cost': 0, 'current_value': 0 } }
+        
+        total_investment_cost = 0
+        current_total_value = 0
+        
+        # Simplified calculation: 
+        # For each log, if buy -> add cost/qty. if sell -> remove cost/qty (FIFO or Avg).
+        # Since it's complex, let's use a simpler current-state snapshot approch if possible.
+        # Check if `InterestStock` has the current holding amount?
+        # If not, let's assume `InvestmentLog` is the source of truth.
+        
+        # [Alternative] Use simple aggregation for MVP
+        # Total Asset = Org Cash + Stock Valuation
+        org_cash = candidate.organization.cash_balance
+        
+        # Calculate Stock Valuation
+        # We need per-stock quantity. 
+        # Let's retrieve this from `InterestStock` assuming it syncs with holdings (as per my_info logic).
+        interest_stocks = InterestStock.objects.filter(user=candidate).select_related('stock')
+        
+        stock_valuation = 0
+        public_stock_valuation = 0
+        public_stock_profit = 0
+        public_stock_cost = 0
+        
+        # Note: InterestStock usually needs to store 'quantity' and 'average_price' to be useful here.
+        # If it doesn't, we must rely on logs.
+        # Let's try to infer from logs quickly.
+        
+        portfolio_map = {}
+        for log in logs:
+            sid = log.stock.id
+            if sid not in portfolio_map:
+                portfolio_map[sid] = {'qty': 0, 'cost': 0}
+            
+            if log.action == 'buy':
+                portfolio_map[sid]['qty'] += log.amount
+                portfolio_map[sid]['cost'] += (log.amount * log.price)
+            elif log.action == 'sell':
+                # Reduce cost proportionally
+                if portfolio_map[sid]['qty'] > 0:
+                    avg_price = portfolio_map[sid]['cost'] / portfolio_map[sid]['qty']
+                    portfolio_map[sid]['cost'] -= (log.amount * avg_price)
+                    portfolio_map[sid]['qty'] -= log.amount
+
+        # Value Calculation
+        for sid, data in portfolio_map.items():
+            qty = data['qty']
+            cost = data['cost']
+            
+            if qty > 0:
+                try:
+                    current_price = Stock.objects.get(id=sid).current_price
+                    val = qty * current_price
+                    
+                    stock_valuation += val
+                    total_investment_cost += cost
+                    
+                    # If this stock is public
+                    if sid in public_stock_ids:
+                        public_stock_valuation += val
+                        public_stock_cost += cost
+                except:
+                    pass
+
+        total_asset = org_cash + stock_valuation
+        
+        # Calculate Yields
+        total_yield = 0
+        if total_investment_cost > 0:
+            total_yield = ((stock_valuation - total_investment_cost) / total_investment_cost) * 100
+            
+        public_yield = 0
+        if public_stock_cost > 0:
+            public_yield = ((public_stock_valuation - public_stock_cost) / public_stock_cost) * 100
+
+        ranking_data.append({
+            'user': candidate,
+            'organization': candidate.organization,
+            'total_asset': total_asset,
+            'total_yield': round(total_yield, 2),
+            'public_yield': round(public_yield, 2),
+            'stock_count': len(public_stock_ids)
+        })
+
+    # Sort
+    sort_by = request.GET.get('sort', 'asset')
+    if sort_by == 'asset':
+        ranking_data.sort(key=lambda x: x['total_asset'], reverse=True)
+    elif sort_by == 'yield':
+        ranking_data.sort(key=lambda x: x['total_yield'], reverse=True)
+    elif sort_by == 'public':
+        ranking_data.sort(key=lambda x: x['public_yield'], reverse=True)
+    
+    # Add Rank
+    for idx, item in enumerate(ranking_data):
+        item['rank'] = idx + 1
+        
+    return render(request, 'community/portfolio_ranking.html', {
+        'ranking_data': ranking_data,
+        'active_main_menu': 'community', 
+        'sort_by': sort_by
+    })
+
+
+# ==========================================
+# [New] Social Feed (Instagram Style)
+# ==========================================
+@login_required
+def feed(request):
+    user = request.user
+    
+    # 1. Get List of Following
+    following_ids = Follow.objects.filter(follower=user).values_list('following_id', flat=True)
+    
+    # 2. Feed Algorithm
+    # - Following Posts: High priority
+    # - Popular Posts: Low priority (Discovery)
+    # - Mix: Latest posts from following + Inject popular posts every N items?
+    # Simple approach: Union or just two separate lists, or fetch sorted by date from combined query.
+    
+    # Fetch Following Posts
+    following_posts = Post.objects.filter(author_id__in=following_ids).select_related('author', 'organization')
+    
+    # Fetch Popular Posts (High Views, excluding Following)
+    popular_posts = Post.objects.exclude(author_id__in=following_ids).exclude(author=user).filter(views__gte=10).order_by('-views', '-created_at')[:5]
+    
+    # Merge and Sort (in Python) to interleave? 
+    # Or just show "Following" feed primarily, and a "Recommended" section.
+    # User Request: "중간중간에 인기글도 피드에 삽입해".
+    
+    # Strategy: Fetch top 50 posts from following.
+    feed_items = list(following_posts.order_by('-created_at')[:50])
+    pop_items = list(popular_posts)
+    
+    # Interleave: Every 3 posts, insert 1 popular post
+    final_feed = []
+    pop_idx = 0
+    
+    if not feed_items and pop_items:
+        # If no following, just show popular
+        final_feed = pop_items
+    else:
+        for i, post in enumerate(feed_items):
+            final_feed.append({'type': 'following', 'post': post})
+            if (i + 1) % 3 == 0 and pop_idx < len(pop_items):
+                final_feed.append({'type': 'popular', 'post': pop_items[pop_idx]})
+                pop_idx += 1
+                
+        # Append remaining popular if feed is short
+        while pop_idx < len(pop_items):
+            final_feed.append({'type': 'popular', 'post': pop_items[pop_idx]})
+            pop_idx += 1
+
+    return render(request, 'community/feed.html', {
+        'feed_items': final_feed,
+        'active_main_menu': 'community',
+        'active_sub_menu': 'feed'
+    })
+
+@login_required
+def follow_toggle(request, user_id):
+    if request.method == 'POST':
+        target_user = get_object_or_404(User, pk=user_id)
+        
+        if target_user == request.user:
+            messages.error(request, "자신을 팔로우할 수 없습니다.")
+            return redirect(request.META.get('HTTP_REFERER', 'feed'))
+            
+        follow, created = Follow.objects.get_or_create(follower=request.user, following=target_user)
+        
+        if not created:
+            # Already exists -> Unfollow
+            follow.delete()
+            # messages.info(request, f"{target_user.username} 님을 언팔로우했습니다.")
+        else:
+            pass
+            # messages.success(request, f"{target_user.username} 님을 팔로우했습니다.")
+            
+        return redirect(request.META.get('HTTP_REFERER', 'feed'))
+    return redirect('feed')
+
+
+

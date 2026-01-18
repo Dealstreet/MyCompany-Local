@@ -13,6 +13,31 @@ urlpatterns = [
     # 로그인 / 로그아웃
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
+    path('my-info/', views.my_info, name='my_info'), # [New]
+
+    # 9. 조직 관리 (직원 관리 + 조직도)
+    path('organization/agents/', views.agent_management, name='agent_management'),
+    path('organization/agents/create/', views.agent_create, name='agent_create'),
+    path('organization/agents/<int:pk>/edit/', views.agent_edit, name='agent_edit'),
+    path('organization/agents/<int:pk>/delete/', views.agent_delete, name='agent_delete'),
+    
+    # 10. 즐겨찾기 API
+    path('favorites/add/', views.add_favorite, name='add_favorite'),
+    path('favorites/delete/<int:pk>/', views.delete_favorite, name='delete_favorite'),
+    path('favorites/reorder/', views.update_favorite_order, name='update_favorite_order'),
+
+    # 11. 마스터 대시보드
+    path('master/users/', views.master_user_list, name='master_user_list'),
+    path('master/users/<int:pk>/toggle/', views.master_user_toggle_status, name='master_user_toggle_status'),
+
+    # 12. 커뮤니티
+    path('community/', views.post_list, name='post_list'),
+    path('community/create/', views.post_create, name='post_create'),
+    path('community/<int:pk>/', views.post_detail, name='post_detail'),
+    path('community/<int:pk>/edit/', views.post_edit, name='post_edit'),
+    path('community/<int:pk>/delete/', views.post_delete, name='post_delete'),
+    path('community/ranking/', views.portfolio_ranking, name='portfolio_ranking'),
+
 
     # 1. 메인 홈
     path('', views.index, name='index'),
@@ -37,7 +62,9 @@ urlpatterns = [
 
     path('approval/list/', views.approval_list, name='approval_list'),
     path('approval/create/', views.create_self_approval, name='create_self_approval'),
+    path('approval/delete-chat/<int:pk>/', views.delete_chat_room, name='delete_chat_room'), # [New]
     path('approval/detail/<int:pk>/', views.approval_detail, name='approval_detail'),
+    path('approval/delete/<int:pk>/', views.delete_approval, name='delete_approval'), # [New]
 
     # 5. 조직도
     path('org/', views.org_chart, name='org_chart'),
@@ -64,6 +91,10 @@ urlpatterns = [
     path('backtest/', views_backtest.backtest_dashboard, name='backtest_dashboard'),
     path('core/backtest/run/', views_backtest.run_backtest_api, name='run_backtest_api'),
     path('core/backtest/export/', views_backtest.export_backtest_csv, name='export_backtest_csv'),
+
+    # 13. 소셜 (피드 & 팔로우) [New]
+    path('community/feed/', views.feed, name='feed'),
+    path('community/follow/<int:user_id>/', views.follow_toggle, name='follow_toggle'),
 ]
 
 # 개발 환경(DEBUG=True)에서 미디어 및 정적 파일 서빙 설정

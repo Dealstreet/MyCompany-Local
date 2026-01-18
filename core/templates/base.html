@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{{ user.organization.name }} CIS{% endblock %}</title>
-    <!-- Bootstrap CSS (Unified) -->
+    <title>{% block title %}{{ user.organization.name }}{% endblock %}</title>
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -18,8 +18,9 @@
         body {
             margin: 0;
             display: flex;
+            flex-direction: column;
             height: 100vh;
-            background-color: #f0f2f5;
+            background-color: #f5f6f8;
             overflow: hidden;
         }
 
@@ -28,188 +29,388 @@
             color: inherit;
         }
 
-        /* 사이드바 스타일 */
-        .sidebar {
-            width: 280px;
-            background-color: #1e293b;
-            color: white;
+        /* Top Navigation */
+        .top-nav {
+            height: 60px;
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
             display: flex;
-            flex-direction: column;
-            padding: 20px;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
             flex-shrink: 0;
+            z-index: 1000;
         }
 
         .logo {
             font-size: 18px;
+            font-weight: 800;
+            color: #1e293b;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .main-menu {
+            display: flex;
+            gap: 5px;
+            height: 100%;
+        }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #64748b;
+            height: 100%;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .menu-item:hover {
+            color: #3b82f6;
+            background-color: #f8fafc;
+        }
+
+        .menu-item.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+
+        /* Layout Container */
+        .layout-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Left Sidebar */
+        .sidebar {
+            width: 240px;
+            background-color: #ffffff;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px 20px;
+            font-size: 13px;
             font-weight: 700;
-            margin-bottom: 30px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .sub-menu-btn {
             display: flex;
             align-items: center;
             gap: 10px;
-            color: #fff;
+            padding: 12px 20px;
+            font-size: 14px;
+            color: #475569;
+            font-weight: 500;
+            transition: 0.15s;
+            border-left: 3px solid transparent;
         }
 
-        /* 프로필 이미지 및 카드 스타일 */
-        .profile-card {
+        .sub-menu-btn:hover {
+            background-color: #f1f5f9;
+            color: #1e293b;
+        }
+
+        .sub-menu-btn.active {
+            background-color: #eff6ff;
+            color: #2563eb;
+            font-weight: 600;
+            border-left-color: #2563eb;
+        }
+
+        .sub-menu-btn .icon {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .content-wrapper {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        /* Profile Dropdown in Top Nav */
+        .profile-section {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px;
-            border-radius: 8px;
-            color: white;
-            transition: 0.2s;
+            gap: 10px;
             cursor: pointer;
-            margin-bottom: 5px;
+            padding: 0 10px;
+            border-radius: 0;
+            height: 100%;
+            border-bottom: 3px solid transparent;
         }
 
-        .profile-card:hover,
-        .profile-card.active {
-            background-color: rgba(255, 255, 255, 0.1);
+        .profile-section:hover {
+            background-color: #f1f5f9;
         }
 
-        .profile-img {
-            width: 40px;
-            height: 40px;
+        .profile-initial {
+            width: 32px;
+            height: 32px;
+            background-color: #3b82f6;
+            color: white;
             border-radius: 50%;
-            object-fit: cover;
-            background-color: #475569;
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
-        }
-
-        .profile-img img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .profile-name {
+            font-weight: bold;
             font-size: 14px;
-            font-weight: 600;
-            line-height: 1.4;
         }
 
-        .profile-role {
-            font-size: 11px;
-            color: #94a3b8;
-            margin-top: 2px;
+        .profile-section.active {
+            color: #3b82f6;
+            border-bottom: 3px solid #3b82f6;
+            background-color: #f8fafc;
         }
 
-        /* 상단 본인 프로필 영역 전용 스타일 */
-        .my-profile {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-        }
-
-        .main-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* 상단 메뉴 버튼 스타일 */
-        .menu-btn {
-            width: 100%;
-            padding: 12px 15px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-orange {
-            background: linear-gradient(135deg, #f2994a, #f2c94c);
-        }
-
-        .btn-blue {
-            background: linear-gradient(135deg, #2980b9, #3498db);
-        }
-
-        .btn-green {
-            background: linear-gradient(135deg, #27ae60, #2ecc71);
-        }
-
-        /* 투자 관리용 녹색 */
-        .btn-purple {
-            background: linear-gradient(135deg, #8e44ad, #9b59b6);
-        }
-
-        .btn-red {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            margin-top: auto;
-        }
-
-        .section-title {
-            font-size: 12px;
-            color: #64748b;
-            margin-top: 15px;
-            margin-bottom: 15px;
-            font-weight: 600;
+        .profile-section.active div {
+            color: #3b82f6 !important;
         }
     </style>
 </head>
 
 <body>
-    <div class="sidebar">
-        <a href="{% url 'index' %}" class="logo">🏢 {{ user.organization.name }} CIS</a>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <a href="{% url 'index' %}" class="logo">
+            🏢 {{ user.organization.name|default:"꼼망컴퍼니" }}
+        </a>
 
-        <div class="my-profile">
-            <div class="profile-card">
-                <div class="profile-img">
-                    <span style="font-size: 18px;">👑</span>
-                </div>
-                <div>
-                    <div class="profile-name">{{ user.username }} {{ user.position|default:"사장" }}</div>
-                    <div class="profile-role">사번: {{ user.employee_id|default:"CEO-001" }}</div>
-                </div>
-            </div>
+        <div class="main-menu">
+            <!-- 1. 나의 원칙 (Home) -->
+            <a href="{% url 'index' %}" class="menu-item {% if active_main_menu == 'home' %}active{% endif %}">
+                나의 원칙
+            </a>
+
+            <!-- 2. 전자결재 -->
+            <a href="{% url 'approval_list' %}"
+                class="menu-item {% if active_main_menu == 'approval' %}active{% endif %}">
+                전자결재
+            </a>
+
+            <!-- 3. 포트폴리오 -->
+            <a href="{% url 'investment_management' %}"
+                class="menu-item {% if active_main_menu == 'portfolio' %}active{% endif %}">
+                포트폴리오
+            </a>
+
+            <!-- 4. 전략관리 -->
+            <a href="{% url 'backtest_dashboard' %}"
+                class="menu-item {% if active_main_menu == 'strategy' %}active{% endif %}">
+                전략관리
+            </a>
+
+            <!-- 5. 조직관리 [New] -->
+            <a href="{% url 'agent_management' %}"
+                class="menu-item {% if active_main_menu == 'organization' %}active{% endif %}">
+                조직관리
+            </a>
         </div>
 
-
-        <a href="{% url 'approval_list' %}" class="menu-btn btn-blue">📂 전자결재함</a>
-        <a href="{% url 'investment_management' %}" class="menu-btn btn-blue">📈 투자 관리</a>
-        <a href="{% url 'backtest_dashboard' %}" class="menu-btn btn-blue">📉 차트/백테스팅</a>
-        <a href="{% url 'stock_management' %}" class="menu-btn btn-blue">📊 종목 관리</a>
-        <a href="{% url 'trade_notification_list' %}" class="menu-btn btn-blue">📩 체결 알림</a>
-        <a href="{% url 'financial_management' %}" class="menu-btn btn-blue">💰 재무 관리</a>
-        <a href="{% url 'account_management' %}" class="menu-btn btn-blue">💳 계좌 관리</a>
-        <a href="{% url 'org_chart' %}" class="menu-btn btn-blue">👥 조직도 보기</a>
-
-        <div class="section-title">AI 직원 목록</div>
-        {% for agent in agents %}
-        <a href="{% url 'messenger' agent.id %}"
-            class="profile-card {% if active_agent.id == agent.id %}active{% endif %}">
-            <div class="profile-img">
-                {% if agent.profile_image %}
-                <img src="{{ agent.profile_image.url }}" alt="{{ agent.name }}">
-                {% else %}
-                <span style="font-size: 18px;">👤</span>
-                {% endif %}
+        <div class="profile-section {% if active_main_menu == 'my_info' %}active{% endif %}"
+            onclick="location.href='{% url 'my_info' %}';" title="내 정보">
+            {% if user.profile_image %}
+            <div style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; border: 2px solid #e2e8f0;">
+                <img src="{{ user.profile_image.url }}" style="width: 100%; height: 100%; object-fit: cover;">
             </div>
-            <div>
-                <div class="profile-name">{{ agent.department }} {{ agent.name }} {{ agent.position }}</div>
-                <div class="profile-role">{{ agent.role|truncatechars:15 }}</div>
-            </div>
-        </a>
-        {% endfor %}
+            {% else %}
+            <div class="profile-initial">{{ user.nickname|default:user.username|slice:":1" }}</div>
+            {% endif %}
+            <div style="font-size:14px; font-weight:600; color:#334155;">{{ user.nickname|default:user.username }}</div>
+        </div>
+    </nav>
 
-        <a href="{% url 'logout' %}" class="menu-btn btn-red">🚪 로그아웃</a>
+    <!-- Layout Container -->
+    <div class="layout-container">
+        <!-- Dynamic Left Sidebar -->
+        <aside class="sidebar">
+            {% if active_main_menu == 'approval' %}
+            <div class="sidebar-header">전자결재</div>
+            <a href="{% url 'approval_list' %}" class="sub-menu-btn {% if active_sub_menu == 'all' %}active{% endif %}">
+                <span class="icon">📂</span> 전체보기
+            </a>
+            <a href="{% url 'org_chart' %}?action=request"
+                class="sub-menu-btn {% if active_sub_menu == 'request' %}active{% endif %}">
+                <span class="icon">✍️</span> 기안 요청
+            </a>
+            <hr style="margin: 10px 20px; border-color: #e2e8f0;">
+            <a href="{% url 'approval_list' %}?status=pending"
+                class="sub-menu-btn {% if active_sub_menu == 'pending' %}active{% endif %}">
+                <span class="icon">🕒</span> 결재 대기
+            </a>
+            <a href="{% url 'approval_list' %}?status=approved"
+                class="sub-menu-btn {% if active_sub_menu == 'approved' %}active{% endif %}">
+                <span class="icon">✅</span> 승인 완료
+            </a>
+            <a href="{% url 'approval_list' %}?status=rejected"
+                class="sub-menu-btn {% if active_sub_menu == 'rejected' %}active{% endif %}">
+                <span class="icon">❌</span> 반려
+            </a>
+
+            {% elif active_main_menu == 'portfolio' %}
+            <div class="sidebar-header">자산 관리</div>
+            <a href="{% url 'stock_management' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'stocks' %}active{% endif %}">
+                <span class="icon">📊</span> 종목 관리
+            </a>
+            <a href="{% url 'investment_management' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'holdings' %}active{% endif %}">
+                <span class="icon">📈</span> 투자 관리
+            </a>
+            <a href="{% url 'financial_management' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'finance' %}active{% endif %}">
+                <span class="icon">💰</span> 재무 관리
+            </a>
+            <a href="{% url 'account_management' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'account' %}active{% endif %}">
+                <span class="icon">💳</span> 계좌 관리
+            </a>
+            <a href="{% url 'trade_notification_list' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'noti' %}active{% endif %}">
+                <span class="icon">📩</span> 체결 알림
+            </a>
+
+            {% elif active_main_menu == 'strategy' %}
+            <div class="sidebar-header">퀀트 전략</div>
+            <a href="{% url 'backtest_dashboard' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'backtest' %}active{% endif %}">
+                <span class="icon">📉</span> 백테스팅/빌더
+            </a>
+            <!-- Future features -->
+            <a href="#" class="sub-menu-btn" style="opacity:0.5; cursor:not-allowed;" title="준비 중">
+                <span class="icon">🤖</span> 자동매매 설정
+            </a>
+
+            {% elif active_main_menu == 'organization' %}
+            <!-- [New] Organization Sub Menu -->
+            <div class="sidebar-header">조직 관리</div>
+            <a href="{% url 'agent_management' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'agents' %}active{% endif %}">
+                <span class="icon">🧑‍💼</span> 직원 관리
+            </a>
+            <a href="{% url 'org_chart' %}" class="sub-menu-btn {% if active_sub_menu == 'org' %}active{% endif %}">
+                <span class="icon">👥</span> 조직도
+            </a>
+
+            {% else %}
+            <!-- Default (Home) -->
+            <div class="sidebar-header">바로가기</div>
+            <a href="{% url 'messenger' %}"
+                class="sub-menu-btn {% if active_sub_menu == 'messenger' %}active{% endif %}">
+                <span class="icon">💬</span> AI 메신저
+            </a>
+            <!-- Org Chart Moved to Organization Menu, but kept here for legacy or quick access if needed? -->
+            <!-- Removing it from here as requested to move it -->
+            {% endif %}
+        </aside>
+
+        <main class="content-wrapper">
+            {% block content %}{% endblock %}
+        </main>
     </div>
 
-    <div class="main-wrapper">
-        {% block content %}{% endblock %}
+    <!-- Global Message Modal (Center Popup) -->
+    {% if messages %}
+    <div id="globalMsgModal" class="msg-modal-overlay">
+        <div class="msg-modal-content">
+            <div class="msg-icon">✨</div>
+            <h4 class="fw-bold mb-3">알림</h4>
+
+            <div class="msg-body mb-4">
+                {% for message in messages %}
+                <p class="m-0">{{ message }}</p>
+                {% endfor %}
+            </div>
+
+            <button onclick="closeMsgModal()" class="btn btn-primary w-100 py-2 fw-bold">
+                확인
+            </button>
+        </div>
     </div>
-    <!-- Bootstrap JS (Unified) -->
+
+    <style>
+        .msg-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.2s;
+        }
+
+        .msg-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            width: 320px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.3s;
+        }
+
+        .msg-icon {
+            font-size: 40px;
+            margin-bottom: 15px;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+
+    <script>
+        function closeMsgModal() {
+            const modal = document.getElementById('globalMsgModal');
+            if (modal) {
+                modal.style.opacity = '0';
+                setTimeout(() => {
+                    modal.remove();
+                }, 200);
+            }
+        }
+    </script>
+    {% endif %}
+
+    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}결재 상세 - 꼼망컴퍼니 CIS{% endblock %}
+{% block title %}결재 상세 - 꼼망컴퍼니{% endblock %}
 
 {% block content %}
 <style>
@@ -203,10 +203,16 @@
         <!-- Action Panel -->
         <div class="action-panel">
             {% if approval.status == 'pending' or approval.status == 'draft' %}
-            <!-- Editable State -->
+            <a href="{% url 'approval_list' %}" class="btn btn-secondary">목록으로</a>
             <button type="submit" name="action" value="save" class="btn-action btn-save">💾 저장</button>
             <button type="submit" name="action" value="reject" class="btn-action btn-reject">❌ 결재 반려</button>
             <button type="submit" name="action" value="approve" class="btn-action btn-approve">✅ 최종 승인</button>
+
+            <!-- [NEW] Delete Button -->
+            {% if user == approval.drafter or user.is_superuser %}
+            <button type="button" class="btn-action btn-danger" onclick="openDeleteModal()"
+                style="background-color: #dc2626; color: white;">🗑 삭제</button>
+            {% endif %}
             {% else %}
             <!-- Read Only State -->
             {% if approval.status == 'approved' %}
@@ -303,6 +309,149 @@
         {% if approval.status != 'pending' and approval.status != 'draft' %}
         $('#summernote').summernote('disable');
         {% endif %}
+    });
+</script>
+
+<!-- [NEW] Safety Lock Delete Modal -->
+<div id="deleteModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content-custom">
+        <div class="modal-header-danger">
+            ⚠️ 경고: 영구 삭제
+        </div>
+        <div class="modal-body-custom">
+            <p class="text-danger fw-bold mb-2">이 작업은 되돌릴 수 없습니다!</p>
+            <p class="mb-3">
+                기안문과 연결된 <strong>모든 거래 내역(Transaction)</strong> 및 투자 기록이 영구적으로 삭제됩니다.<br>
+                재무 제표에 영향을 줄 수 있습니다.
+            </p>
+
+            <div class="safety-lock-box">
+                <label class="mb-1 text-sm text-secondary">삭제하려면 아래 문구를 똑같이 입력하세요:</label>
+                <div class="user-check-badge mb-2">
+                    {{ user.last_name }}{{ user.first_name }} 확인완료
+                </div>
+                <input type="text" id="deleteConfirmInput" class="form-control" placeholder="위 문구를 입력하세요"
+                    onkeyup="checkDeleteInput()">
+            </div>
+        </div>
+        <div class="modal-footer-custom">
+            <button class="btn btn-light border" onclick="closeDeleteModal()">취소</button>
+            <form action="{% url 'delete_approval' approval.id %}" method="POST" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" id="realDeleteBtn" class="btn btn-danger" disabled
+                    style="background-color: #dc2626; color: white;">삭제 실행</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        backdrop-filter: blur(2px);
+    }
+
+    .modal-content-custom {
+        background: white;
+        width: 400px;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        animation: popIn 0.2s ease-out;
+        font-family: 'Pretendard', sans-serif;
+        /* Keep font consistent if possible */
+    }
+
+    .modal-header-danger {
+        background: #ef4444;
+        color: white;
+        padding: 15px 20px;
+        font-weight: bold;
+        font-size: 16px;
+    }
+
+    .modal-body-custom {
+        padding: 20px;
+        text-align: left;
+    }
+
+    .modal-footer-custom {
+        padding: 15px 20px;
+        background: #f9fafb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        border-top: 1px solid #e5e7eb;
+    }
+
+    .safety-lock-box {
+        background: #f3f4f6;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e5e7eb;
+    }
+
+    .user-check-badge {
+        font-weight: 800;
+        color: #1f2937;
+        background: #e5e7eb;
+        padding: 4px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        font-size: 13px;
+    }
+
+    @keyframes popIn {
+        from {
+            transform: scale(0.95);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+</style>
+
+<script>
+    const targetPhrase = "{{ user.last_name }}{{ user.first_name }} 확인완료";
+
+    function openDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'flex';
+        document.getElementById('deleteConfirmInput').value = '';
+        checkDeleteInput();
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('deleteModal').style.display = 'none';
+        return false; // Prevent form submission if inside a form
+    }
+
+    function checkDeleteInput() {
+        const input = document.getElementById('deleteConfirmInput').value;
+        const btn = document.getElementById('realDeleteBtn');
+
+        if (input.trim() === targetPhrase) {
+            btn.disabled = false;
+        } else {
+            btn.disabled = true;
+        }
+    }
+
+    // Close on outside click
+    document.getElementById('deleteModal').addEventListener('click', function (e) {
+        if (e.target === this) closeDeleteModal();
     });
 </script>
 {% endblock %}

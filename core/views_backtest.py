@@ -15,7 +15,12 @@ def backtest_dashboard(request):
     """
     # Fetch all stocks for the dropdown
     stocks = Stock.objects.all().order_by('display_order', 'name')
-    return render(request, 'backtest_dashboard.html', {'stocks': stocks})
+    stocks = Stock.objects.all().order_by('display_order', 'name')
+    return render(request, 'backtest_dashboard.html', {
+        'stocks': stocks,
+        'active_main_menu': 'strategy',
+        'active_sub_menu': 'backtest'
+    })
 
 @staff_member_required
 def run_backtest_api(request):

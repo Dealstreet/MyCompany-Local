@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 900px;">
+    <!-- Navigation -->
+    <div class="mb-4">
+        <a href="{% url 'post_list' %}?category=all" class="btn btn-light rounded-circle"
+            style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path>
+            </svg>
+        </a>
+    </div>
+
+    <!-- Post Content -->
+    <div class="card border-0 shadow-sm mb-4" style="border-radius: 20px;">
+        <div class="card-body p-5">
+            <div class="d-flex align-items-center gap-2 mb-3">
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3">
+                    {{ post.get_category_display }}
+                </span>
+                <span class="text-muted small">{{ post.created_at|date:"Y.m.d H:i" }}</span>
+            </div>
+
+            <h2 class="fw-bold mb-4" style="color: #1e293b;">{{ post.title }}</h2>
+
+            <div class="d-flex align-items-center justify-content-between border-bottom pb-4 mb-4">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-light d-flex align-items-center justify-content-center text-muted fw-bold border"
+                        style="width: 48px; height: 48px; font-size: 18px;">
+                        {{ post.author.last_name|slice:":1" }}
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark">
+                            {{ post.author.last_name }}{{ post.author.first_name }}
+                            <span class="text-muted small ms-1">{{ post.author.position }}</span>
+                        </div>
+                        <div class="text-primary small fw-bold">{{ post.organization.name }}</div>
+                    </div>
+                </div>
+
+                {% if user == post.author or user.is_superuser %}
+                <div class="d-flex gap-2">
+                    <a href="{% url 'post_edit' post.pk %}"
+                        class="btn btn-outline-secondary btn-sm rounded-pill px-3">수정</a>
+                    <form action="{% url 'post_delete' post.pk %}" method="post"
+                        onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">삭제</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="post-content" style="min-height: 200px; line-height: 1.8; color: #334155;">
+                {{ post.content|linebreaks }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

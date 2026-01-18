@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1000px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold m-0" style="color: #1e293b;">📢 커뮤니티</h3>
+        <a href="{% url 'post_create' %}" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">
+            🖊️ 글쓰기
+        </a>
+    </div>
+
+    <!-- Category Tabs -->
+    <div class="mb-4">
+        <div class="d-flex gap-2">
+            <a href="?category=all"
+                class="btn {% if category == 'all' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill px-4 fw-bold">전체</a>
+            <a href="?category=market"
+                class="btn {% if category == 'market' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill px-4 fw-bold">📉
+                시황</a>
+            <a href="?category=strategy"
+                class="btn {% if category == 'strategy' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill px-4 fw-bold">♟️
+                전략</a>
+            <a href="?category=asset"
+                class="btn {% if category == 'asset' %}btn-dark{% else %}btn-outline-dark{% endif %} rounded-pill px-4 fw-bold">💰
+                자산</a>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <form class="mb-4 d-flex gap-2">
+        <input type="hidden" name="category" value="{{ category }}">
+        <input type="text" name="q" class="form-control rounded-pill px-4" placeholder="제목 또는 내요 검색"
+            value="{{ search_query }}">
+        <button type="submit" class="btn btn-secondary rounded-pill px-4">검색</button>
+    </form>
+
+    <!-- Post List -->
+    <div class="card border-0 shadow-sm" style="border-radius: 20px;">
+        <div class="list-group list-group-flush rounded-3">
+            {% for post in page_obj %}
+            <a href="{% url 'post_detail' post.pk %}" class="list-group-item list-group-item-action p-4 border-bottom">
+                <div class="d-flex w-100 justify-content-between align-items-start mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-light text-dark border rounded-pill px-2 small">
+                            {{ post.get_category_display }}
+                        </span>
+                        <h5 class="mb-0 fw-bold text-dark">{{ post.title }}</h5>
+                    </div>
+                    <small class="text-muted">{{ post.created_at|date:"Y.m.d" }}</small>
+                </div>
+                <p class="mb-2 text-secondary text-truncate" style="max-width: 800px;">
+                    {{ post.content|striptags|truncatechars:100 }}
+                </p>
+                <div class="d-flex align-items-center gap-2 text-muted small">
+                    <span class="fw-bold text-primary">{{ post.organization.name }}</span>
+                    <span>·</span>
+                    <span>{{ post.author.last_name }}{{ post.author.first_name }}</span>
+                    {% if post.author.position %}
+                    <span>({{ post.author.position }})</span>
+                    {% endif %}
+                </div>
+            </a>
+            {% empty %}
+            <div class="text-center py-5 text-muted">
+                <div style="font-size: 32px; margin-bottom: 10px;">📭</div>
+                등록된 게시글이 없습니다.
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link rounded-start-pill"
+                    href="?page={{ page_obj.previous_page_number }}&category={{ category }}&q={{ search_query }}">이전</a>
+            </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link rounded-end-pill"
+                    href="?page={{ page_obj.next_page_number }}&category={{ category }}&q={{ search_query }}">다음</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
